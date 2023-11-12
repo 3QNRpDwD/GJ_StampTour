@@ -1,0 +1,76 @@
+/*
+  root.css
+  GJ_StampTour
+
+  Created by Js Na on 2023/09/15.
+  Copyright © 2023 Js Na, All rights reserved.
+*/
+
+/* SeoulNamsan */
+/*
+@font-face {
+    font-family: 'SeoulNamsan';
+    src: url('../fonts/SeoulNamsanL.woff2') format("woff2"),
+        url('../fonts/SeoulNamsanL.woff') format("woff"),
+        url('../fonts/SeoulNamsanL.ttf') format("truetype");
+    font-weight: 300;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'SeoulNamsan';
+    src: url('../fonts/SeoulNamsanM.woff2') format("woff2"),
+        url('../fonts/SeoulNamsanM.woff') format("woff"),
+        url('../fonts/SeoulNamsanM.ttf') format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'SeoulNamsan';
+    src: url('../fonts/SeoulNamsanB.woff2') format("woff2"),
+        url('../fonts/SeoulNamsanB.woff') format("woff"),
+        url('../fonts/SeoulNamsanB.ttf') format("truetype");
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'SeoulNamsan';
+    src: url('../fonts/SeoulNamsanEB.woff2') format("woff2"),
+        url('../fonts/SeoulNamsanEB.woff') format("woff"),
+        url('../fonts/SeoulNamsanEB.ttf') format("truetype");
+    font-weight: 800;
+    font-style: normal;
+} */
+
+
+
+/* Gmarket Sans */
+
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('../fonts/GmarketSansLight.woff2') format("woff2"),
+        url('../fonts/GmarketSansLight.woff') format("woff"),
+        url('../fonts/GmarketSansLight.ttf') format("truetype");
+    font-weight: 300;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('../fonts/GmarketSansMedium.woff2') format("woff2"),
+        url('../fonts/GmarketSansMedium.woff') format("woff"),
+        url('../fonts/GmarketSansMedium.ttf') format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('../fonts/GmarketSansBold.woff2') format("woff2"),
+        url('../fonts/GmarketSansBold.woff') format("woff"),
+        url('../fonts/GmarketSansBold.ttf') format("truetype");
+    font-weight: 700;
+    font-style: normal;
+}

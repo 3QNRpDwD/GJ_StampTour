@@ -1,0 +1,63 @@
+<!--
+  guide.html
+  GJ_StampTour
+
+  Created by Js Na on 2023/10/19.
+  Copyright © 2023 Js Na, All rights reserved.
+-->
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스탬프투어 가이드</title>
+    <style>
+        @import url('./css/font.css');
+        @import url('./css/root.css');
+        .mainContainer {
+            padding: 1em;
+            margin-top: 4em;
+            box-sizing: border-box;
+            position: absolute;
+        }
+        img {
+            height: 40vh;
+        }
+        #StampDemo_Tag {
+            outline: 3px solid #A0A0A0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="guideTitleBar" class="titleBar">
+        <h1>대충 이름 OR 로고</h1>
+        <a href="/index.html"><img src="/images/back.svg" alt="돌아가기"></a>
+    </div>
+    <div class="mainContainer">
+        <h1>어떻게 참여하나요?</h1>
+        <hr>
+        <h2>1. 휴대 전화의 NFC 기능 활성화해주세요.</h2>
+        <h2>2. 지도에서 스탬프를 확인하세요.</h2>
+        <h2>3. 스탬프를 찾아 태그 부분에 휴대 전화를 인식하세요.</h2>
+        <!-- TODO: iOS/Android 감지 후 이미지 표시 -->
+        <picture>
+            <source srcset="./images/StampDemo_Tag.webp" type="image/webp">
+            <img id="StampDemo_Tag" src="./images/StampDemo_Tag.png">
+        </picture>
+        <h2>3. 인식한 NFC 태그를 기본 브라우저에서 열면 스탬프가 기록됩니다.</h2>
+    </div>
+    <div id="stampView" class="stampView"></div>
+</body>
+<script src="https://unpkg.com/panzoom@9.4.3/dist/panzoom.min.js"></script>
+<script src="/js/JsAPI.js"></script>
+<script src="/js/root.js"></script>
+<script>
+    window.onload = function () {
+        init();
+    }
+</script>
+
+</html>

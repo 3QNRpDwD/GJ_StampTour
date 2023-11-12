@@ -1,0 +1,63 @@
+<!--
+  check.html
+  GJ_StampTour
+
+  Created by Js Na on 2023/09/13.
+  Copyright © 2023 Js Na, All rights reserved.
+-->
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스탬프투어</title>
+    <style>
+        @import url('./css/font.css');
+        @import url('./css/root.css');
+
+        .mainContainer {
+            margin-top: 4em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .mainContainer div {
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="titleBar" class="titleBar">
+        <h1>4층</h1>
+    </div>
+    <div class="mainContainer">
+        <div class=""
+            onclick="checkStamp(); window.opener=null; window.open('','_self'); window.close(); window.history.go(-1); $(document.body).hide();">
+            <img src="/images/check.svg"><h3 style="font-size: 0.9em">스탬프 찍기</h3>
+        </div>
+    </div>
+</body>
+<script src="/js/root.js"></script>
+<script>
+    function checkStamp() {
+        let stampJSON = getCookie('localStamp');
+        if (stampJSON == null) {
+            // new array
+            let stampList = [getParameter("s")];
+            console.log(stampList);
+            console.log(JSON.stringify(stampList));
+            setCookie('localStamp', JSON.stringify(stampList), 7);
+        } else {
+            stampJSON = decodeURIComponent(stampJSON);
+            let stampList = JSON.parse(stampJSON);
+            stampList.push(getParameter("s"));
+            setCookie('localStamp', JSON.stringify(stampList), 7);
+        }
+    }
+</script>
+
+</html>

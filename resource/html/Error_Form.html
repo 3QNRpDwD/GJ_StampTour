@@ -1,0 +1,52 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="icon" href="/icon/favicon.ico">
+    <meta charset="utf-8">
+    <title>Error Page</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/Error_Form.css">
+</head>
+<body>
+  <header class="bg-gray-900 text-white py-4">
+    <div class="container1 mx-auto flex flex-col md:flex-row justify-between items-center">
+      <nav>
+        <ul class="flex space-x-4">
+          <li><a href="/Index" class="hover:text-gray-300">Home</a></li>
+          <li><a href="/Explore" class="hover:text-gray-300">Explore</a></li>
+          <li><a href="/Feed_Page" class="hover:text-gray-300">Notifications</a></li>
+          <li><a href="/Messages" class="hover:text-gray-300">Messages</a></li>
+        </ul>
+      </nav>
+      <div class="flex items-center space-x-4">
+        <!-- 로그인 상태 확인 -->
+        <script>
+          const isLoggedIn = document.cookie.includes("SessionID");
+        </script>
+        <!-- 계정 정보 메뉴 -->
+        <script>
+          if (isLoggedIn) {{
+            document.write('<a href="Account_Info" class="text-gray-300 hover:text-white">Account</a>');
+            document.write('<span class="text-gray-300">|</span>');
+            document.write('<a href="Logout_form" class="text-gray-300 hover:text-white">Logout</a>');
+          }} else {{
+            document.write('<a href="Login_form" class="text-gray-300 hover:text-white">Login</a>');
+            document.write('<span class="text-gray-300">|</span>');
+            document.write('<a href="Register_form" class="text-gray-300 hover:text-white">Register</a>');
+          }}
+        </script>
+      </div>
+    </div>
+  </header>
+  
+  <div class="overlay">
+      <div class="modal">
+          <h1>Oops! Something went wrong.</h1>
+          <p class="error-code">{0}</p>
+          <p class="error-message">{1}</p>
+          <a href="/Index" class="button">Go back</a>
+      </div>
+  </div>
+</body>
+</html>
