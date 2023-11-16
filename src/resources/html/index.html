@@ -1,0 +1,129 @@
+<!--
+  index.html
+  GJ_StampTour
+
+  Created by Js Na on 2023/09/13.
+  Copyright © 2023 Js Na, All rights reserved.
+-->
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>스탬프투어</title>
+    <style>
+        @import url('/css/font.css');
+        @import url('/css/root.css');
+    </style>
+</head>
+
+<body>
+    <div class="titleBar" id="titleBar">
+        <h1>4층</h1>
+    </div>
+    <div class="mainContainer">
+        <svg class="map" id="mapF4">
+            <g id="복도">
+                <rect class="hallway" height="300" width="50" x="150" y="100" />
+                <rect class="hallway" height="50" width="1100" x="150" y="400" />
+                <rect class="hallway" height="400" width="50" x="850" y="0" />
+                <rect class="hallway" height="550" width="50" x="1200" y="450" />
+                <polygon class="hallway" points="90,360 130,400 150,400 150,500 130,500 90,540 0,450" />
+                <rect class="hallway" height="100" width="150" x="150" y="450" />
+                <!--계단-->
+                <rect class="hallway" height="100" width="50" x="1100" y="450" />
+                <rect class="hallway" height="100" width="50" x="1100" y="450" />
+                <rect class="hallway" height="100" width="50" x="800" y="0" />
+            </g>
+            <g id="교실">
+                <g class="classroom" id="기술실">
+                    <rect height="100" width="150" x="100" y="0" />
+                    <text x="175" y="50">기술실</text>
+                </g>
+                <rect height="100" width="50" x="250" y="0" />
+                <g class="classroom" id="가사실">
+                    <rect height="150" width="100" x="200" y="100" />
+                    <text x="250" y="175">가사실</text>
+                </g>
+                <g class="classroom" id="뉴턴실(수)">
+                    <rect height="100" width="50" x="100" y="100" />
+                    <text dy="-0.3em" style="font-size: 1em;" x="125" y="150">뉴턴실</text>
+                    <text dy="0.8em" style="font-size: 0.8em; font-weight: normal;" x="125" y="150">(수)</text>
+                </g>
+                <g class="classroom" id="가우스실(수)">
+                    <rect height="50" width="100" x="200" y="250" />
+                    <text dy="-0.3em" style="font-size: 1em;" x="250" y="275">가우스실</text>
+                    <text dy="0.8em" style="font-size: 0.8em; font-weight: normal;" x="250" y="275">(수)</text>
+                </g>
+                <g class="classroom" id="교실203">
+                    <rect height="100" width="150" x="300" y="450" />
+                    <text x="375" y="500">교실 2-3</text>
+                </g>
+                <g class="classroom" id="교실204">
+                    <rect height="100" width="150" x="450" y="450" />
+                    <text x="525" y="500">교실 2-4</text>
+                </g>
+                <g class="classroom" id="교실205">
+                    <rect height="100" width="150" x="600" y="450" />
+                    <text x="675" y="500">교실 2-5</text>
+                </g>
+                <g class="classroom" id="교실206">
+                    <rect height="100" width="150" x="750" y="450" />
+                    <text x="825" y="500">교실 2-6</text>
+                </g>
+                <g class="classroom" id="교실207">
+                    <rect height="100" width="150" x="900" y="450" />
+                    <text x="975" y="500">교실 2-7</text>
+                </g>
+                <g class="classroom" id="교실208">
+                    <rect height="150" width="100" x="1250" y="400" />
+                    <text x="1300" y="475">교실 2-8</text>
+                </g>
+                <g class="classroom" id="교실209">
+                    <rect height="150" width="100" x="1250" y="550" />
+                    <text x="1300" y="625">교실 2-9</text>
+                </g>
+                <g class="classroom" id="교실210">
+                    <rect height="150" width="100" x="1250" y="700" />
+                    <text x="1300" y="775">교실 2-10</text>
+                </g>
+                <g class="classroom" id="교실211">
+                    <rect height="150" width="100" x="1250" y="850" />
+                    <text x="1300" y="925">교실 2-11</text>
+                </g>
+
+                <g class="notClassroom" id="화장실1">
+                    <rect height="100" width="100" x="200" y="300" />
+                    <text x="250" y="350">화장실</text>
+                </g>
+                <g class="notClassroom" id="화장실2">
+                    <rect height="100" width="100" x="750" y="300" />
+                    <text x="800" y="350">화장실</text>
+                </g>
+
+                <g class="notClassroom" id="교무실">
+                    <rect height="100" width="100" x="900" y="300" />
+                    <text x="950" y="350">교무실</text>
+                </g>
+                <rect class="notClassroom" height="100" width="50" x="1050" y="450" />
+                <rect class="notClassroom" height="300" width="100" x="900" y="0" />
+            </g>
+        </svg>
+    </div>
+    <div class="stampView" id="stampView"></div>
+</body>
+<script src="https://unpkg.com/panzoom@9.4.3/dist/panzoom.min.js"></script>
+<script src="/js/root.js"></script>
+<script src="/js/root.js"></script>
+
+<script>
+    var mapView = document.getElementById("mapF4");
+    window.onload = function () {
+        init();
+        getClassroomList();
+        enableMapZoom(mapView);
+    }
+</script>
+
+</html>
