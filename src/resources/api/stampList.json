@@ -1,0 +1,47 @@
+{
+    "stampList": [
+        {
+            "stampId": "3B562418-C85E-4E4D-9CB2-BF3A8D75AA49",
+            "stampLocation": "DEMO_교실106",
+            "stampName": "프로그래밍 동아리",
+            "stampDesc": "프로그래밍 동아리의 프로젝트 ~",
+            "stampBanner": "3B562418-C85E-4E4D-9CB2-BF3A8D75AA49.png"
+        },
+        {
+            "stampId": "8CDA116E-D6A8-4E97-9E2B-95AE1704B709",
+            "stampLocation": "DEMO_교실107",
+            "stampName": "과학 동아리",
+            "stampDesc": "과학 동아리에서 진행하는 ~",
+            "stampBanner": "8CDA116E-D6A8-4E97-9E2B-95AE1704B709.png"
+        },
+        {
+            "stampId": "B20EAC14-7F0F-4F91-9B18-B77A40EB5CBD",
+            "stampLocation": "DEMO_교실108",
+            "stampName": "수학 동아리",
+            "stampDesc": "수학 동아리의 ~ 행사에 참여해 보세요.",
+            "stampBanner": "B20EAC14-7F0F-4F91-9B18-B77A40EB5CBD.png"
+        },
+        {
+            "stampId": "717D2CAE-5D59-4ECB-B28A-E79ACAA9F666",
+            "stampLocation": "DEMO_교실108",
+            "stampName": "A 동아리",
+            "stampDesc": "A 동아리의 ~ 행사에 참여해 보세요.",
+            "stampBanner": "717D2CAE-5D59-4ECB-B28A-E79ACAA9F666.png"
+        },
+        {
+            "stampId": "C6924050-3F52-4006-846A-F0C883F5C357",
+            "stampLocation": "DEMO_교실108",
+            "stampName": "B 동아리",
+            "stampDesc": "B 동아리의 ~ 행사에 참여해 보세요.",
+            "stampBanner": "C6924050-3F52-4006-846A-F0C883F5C357.png"
+        },
+        {
+            "stampId": "C6924050-3F52-4006-846A-F0C883F5C357",
+            "stampLocation": "DEMO_교실108",
+            "stampName": "B 동아리",
+            "stampDesc": "B 동아리의 ~ 행사에 참여해 보세요.",
+            "stampBanner": "C6924050-3F52-4006-846A-F0C883F5C357.png"
+        }
+
+    ]
+}
