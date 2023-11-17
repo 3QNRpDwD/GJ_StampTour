@@ -1,42 +1,42 @@
 ```mermaid
 sequenceDiagram
-    participant User
-    participant ActixWeb
-    participant App
-    participant Index
-    participant HandleReq
-    participant Path
-    participant ReadFile
+    participant Client
+    participant Actix-Web Server
+    participant read_file_function
+    participant path_function
+    participant File_System
 
-    User->>ActixWeb: HTTP Request
-    ActixWeb->>App: Create App
-    App->>Index: index service
-    Index->>ReadFile: read_file("src/resources/html/index.html")
-    ReadFile->>File: File::open("src/resources/html/index.html")
-    File-->>ReadFile: Result (Ok or Err)
-    ReadFile-->>Index: Result (Ok or Err)
-    Index-->>App: HttpResponse
-    App-->>ActixWeb: HttpResponse
-    ActixWeb-->>User: HTTP Response
+    Client ->> Actix-Web Server: HTTP Request (/)
+    Note over Actix-Web Server: Handles the request with index() function
 
-    User->>ActixWeb: HTTP Request with parameters
-    ActixWeb->>App: Create App
-    App->>HandleReq: handle_req service
-    HandleReq->>Path: path(folder, file)
-    Path->>ReadFile: read_file(format!("src/resources/{}/{}", folder, file))
-    ReadFile->>File: File::open(format!("src/resources/{}/{}", folder, file))
-    File-->>ReadFile: Result (Ok or Err)
-    ReadFile-->>Path: Result (Ok or Err)
-    Path-->>HandleReq: Result (Ok or Err)
-    HandleReq-->>App: HttpResponse
-    App-->>ActixWeb: HttpResponse
-    ActixWeb-->>User: HTTP Response
+    Actix-Web Server ->> path_function: Call path("html", "index.html")
+    path_function ->> File_System: Get current_exe()
+    File_System -->> path_function: Executable path
+    path_function ->> File_System: Join with requested path
+    File_System -->> path_function: Full file path
+    path_function ->> read_file_function: Call read_file(full_path)
+    read_file_function ->> File_System: Open the file
+    File_System -->> read_file_function: File handle
+    read_file_function ->> File_System: Read file contents
+    File_System -->> read_file_function: Contents
+    read_file_function ->> Actix-Web Server: Return contents
 
-    ReadFile->>File: Read file content
-    File-->>ReadFile: Result (Ok or Err)
-    ReadFile-->>Path: Result (Ok or Err)
-    Path-->>Index: Result (Ok or Err)
-    Index-->>App: HttpResponse
-    App-->>ActixWeb: HttpResponse
-    ActixWeb-->>User: HTTP Response
+    Actix-Web Server -->> Client: HTTP Response (index.html content)
+
+    Client ->> Actix-Web Server: HTTP Request (/folder/file)
+    Note over Actix-Web Server: Handles the request with handle_req() function
+
+    Actix-Web Server ->> path_function: Call path("folder", "file")
+    path_function ->> File_System: Get current_exe()
+    File_System -->> path_function: Executable path
+    path_function ->> File_System: Join with requested path
+    File_System -->> path_function: Full file path
+    path_function ->> read_file_function: Call read_file(full_path)
+    read_file_function ->> File_System: Open the file
+    File_System -->> read_file_function: File handle
+    read_file_function ->> File_System: Read file contents
+    File_System -->> read_file_function: Contents
+    read_file_function ->> Actix-Web Server: Return contents
+
+    Actix-Web Server -->> Client: HTTP Response (file contents)
 ```
