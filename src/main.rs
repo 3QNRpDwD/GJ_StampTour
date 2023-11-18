@@ -4,18 +4,19 @@ use std::env;
 use std::path::Path;
 
 
-use actix_web::{App, get, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{App, get, HttpRequest, HttpResponse, HttpServer, Responder, web};
 
 #[get("/")]// 메인폼 요청 처리
 async fn index() -> impl Responder {
-    let mut content:String = String::new();
     match path("html","index.html").await {
-        Ok(v) => content = v,
-        Err(_) => content = "파일을 찾을수없습니다.".to_string()
+        Ok(v) => HttpResponse::Ok().body(v),
+        Err(_) => handle_404().await
     }
-    HttpResponse::Ok().body(content)
 }
 
+async fn handle_404() -> HttpResponse {
+    HttpResponse::NotFound().body("404 Not Found")
+}
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
 async fn handle_req(req: HttpRequest) -> impl Responder {
     match path(&*req.match_info().get("folder").unwrap(), req.match_info().query("file")).await {
@@ -97,6 +98,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .service(index)
             .service(handle_req)
+            .default_service(web::route().to(handle_404))
     })
         .bind(("127.0.0.1", port))?
         .run()
