@@ -1,13 +1,15 @@
+
 use std::{fs::File, io::Read};
 use std::env;
 use std::path::Path;
+
 
 use actix_web::{App, get, HttpRequest, HttpResponse, HttpServer, Responder};
 
 #[get("/")]// 메인폼 요청 처리
 async fn index() -> impl Responder {
     let mut content:String = String::new();
-    match path("html","index.html") {
+    match path("html","index.html").await {
         Ok(v) => content = v,
         Err(_) => content = "파일을 찾을수없습니다.".to_string()
     }
@@ -16,14 +18,14 @@ async fn index() -> impl Responder {
 
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
 async fn handle_req(req: HttpRequest) -> impl Responder {
-    match path(&*req.match_info().get("folder").unwrap(), req.match_info().query("file")) {
+    match path(&*req.match_info().get("folder").unwrap(), req.match_info().query("file")).await {
         Ok(result) => HttpResponse::Ok().body(result),
         Err(e) => HttpResponse::Ok().body(e)
     }
 }
 
 // 파일의 경로를 설정하고 read_file 함수를 사용해서 불러옴
-fn path(folder: &str, file: &str) -> Result<String, Vec<u8>> {
+async fn path(folder: &str, file: &str) -> Result<String, Vec<u8>> {
     println!("요청 경로 : /{}/{}", folder, file);
     // Use unwrap_or_else to provide a default value in case of an error.
     let file_path = env::current_exe()
@@ -34,14 +36,14 @@ fn path(folder: &str, file: &str) -> Result<String, Vec<u8>> {
         });
 
     println!("실제 경로 : {:?}", file_path);
-    match read_file(file_path.as_path()) {
+    match read_file(file_path.as_path()).await {
         Ok(v) => { println!(" 텍스트 파일: {}", file); Ok(v)},
         Err(e) => { println!(" 바이너리 파일: {}", file); Err(e) }
     }
 }
 
 // 실제로 파일을 읽는 함수
-fn read_file(path: &Path) -> Result<String, Vec<u8>> {
+async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
     let binary_file_list: Vec<&str> = vec!["ico", "png", "webp", "ttf", "woff2", "woff"];
     let mut contents = Vec::new();
 
@@ -77,14 +79,27 @@ fn read_file(path: &Path) -> Result<String, Vec<u8>> {
 // 메인 함수
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    println!("Rust Actix-web server started at 127.0.0.1:8080");
+    let args: Vec<String> = env::args().collect();
+    let mut port = 8080;
+    let mut mode = "http";
+
+    match args.len() {
+        2 if args[1].parse::<i32>().is_ok() => { port = args[1].parse().unwrap(); }
+        2 => { mode = &args[1]; }
+        3 if args[2].parse::<i32>().is_ok() => { port = args[2].parse().unwrap(); mode = &args[1]; }
+        3 if args[1].parse::<i32>().is_ok() => { port = args[1].parse().unwrap();mode = &args[2]; }
+        _ => {}
+    }
+
+    println!("Rust {} Actix-web server started at 127.0.0.1:{}", mode, port);
 
     HttpServer::new(|| {
         App::new()
             .service(index)
             .service(handle_req)
     })
-        .bind(("127.0.0.1", 8080))?
+        .bind(("127.0.0.1", port))?
         .run()
         .await
 }
+
