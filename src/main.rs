@@ -17,6 +17,7 @@ async fn index() -> impl Responder {
 async fn handle_404() -> HttpResponse {
     HttpResponse::NotFound().body("404 Not Found")
 }
+
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
 async fn handle_req(req: HttpRequest) -> impl Responder {
     match path(&*req.match_info().get("folder").unwrap(), req.match_info().query("file")).await {
