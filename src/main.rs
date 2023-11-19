@@ -15,7 +15,7 @@ async fn index() -> impl Responder {
 }
 
 async fn handle_404() -> HttpResponse {
-    HttpResponse::NotFound().body("404 Not Found")
+    HttpResponse::NotFound().body(path("html", "Error.html").await.unwrap())
 }
 
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
@@ -26,20 +26,41 @@ async fn handle_req(req: HttpRequest) -> impl Responder {
     }
 }
 
+#[get("/{file}")]
+async fn handle_html(req: HttpRequest) -> impl Responder {
+    let split_str: Vec<&str> = req.match_info().query("file")
+        .split('.')
+        .collect();
+
+    let formatted_file: String;  // Declare the formatted_file variable without initializing it.
+    let file: &str;
+
+    if split_str.len() == 1 {
+        formatted_file = format!("{}.html", split_str[0]);
+        file = &formatted_file;
+    } else {
+        file = req.match_info().query("file");
+    }
+
+    match path("html", file).await {
+        Ok(result) => { if result.contains("(os error 2)") { handle_404().await } else { HttpResponse::Ok().body(result) } },
+        Err(_) => handle_404().await
+    }
+}
+
+
 // 파일의 경로를 설정하고 read_file 함수를 사용해서 불러옴
 async fn path(folder: &str, file: &str) -> Result<String, Vec<u8>> {
-    println!("요청 경로 : /{}/{}", folder, file);
     // Use unwrap_or_else to provide a default value in case of an error.
     let file_path = env::current_exe()
-        .map(|exe_path| exe_path.parent().map_or(Default::default(), |exe_dir| exe_dir.join(Path::new(&format!( "resources/{}/{}", folder,   file)))))
+        .map(|exe_path| exe_path.parent().map_or(Default::default(), |exe_dir| exe_dir.join(Path::new(&format!( "resources\\{}\\{}", folder,   file)))))
         .unwrap_or_else(|e| {
             eprintln!("Failed to get the current executable path: {}", e);
             Default::default()
         });
 
-    println!("실제 경로 : {:?}", file_path);
     match read_file(file_path.as_path()).await {
-        Ok(v) => { println!(" 텍스트 파일: {}", file); Ok(v)},
+        Ok(v) => { println!(" 텍스트 파일: {},", file); Ok(v)},
         Err(e) => { println!(" 바이너리 파일: {}", file); Err(e) }
     }
 }
@@ -52,13 +73,13 @@ async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
     // Use map_err to convert the error to a string before returning it.
     File::open(path)
         .map_err(|e| {
-            println!("파일 {:?} 읽기 오류 : {}", path, e);
-            e.to_string()
+            println!("파일 {:?} 의 경로를 찾을수 없습니다.", path);
+            contents.extend_from_slice(&e.to_string().as_bytes())
         })
         .and_then(|mut file| {
             // Use ? operator for early return in case of an error.
             file.read_to_end(&mut contents).expect("파일 읽기 실패");
-            Ok(())
+            Ok::<String, _>(format!("파일 {:?} 읽기 실패", path))
         })
         .ok(); // Ignore the result since it's already logged.
 
@@ -74,7 +95,6 @@ async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
         }
     }
 
-    println!("파일 읽기 성공 : {}", path.to_string_lossy());
     String::from_utf8(contents.clone()).map_err(|_| contents)
 }
 
@@ -99,6 +119,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .service(index)
             .service(handle_req)
+            .service(handle_html)
             .default_service(web::route().to(handle_404))
     })
         .bind(("127.0.0.1", port))?
