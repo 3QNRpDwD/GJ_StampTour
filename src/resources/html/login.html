@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대시보드</title>
+    <!-- Tailwind CSS CDN 추가 -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+
+<div class="flex h-screen bg-gray-200">
+    <!-- 사이드바 -->
+    <aside class="w-64 bg-blue-500 p-4">
+        <!-- 로고 또는 사이드바 내용 추가 -->
+        <h1 class="text-white text-2xl font-bold">로고</h1>
+        
+        <!-- 스탬프 리스트 -->
+        <div class="mt-4">
+            <h2 class="text-white text-lg font-semibold mb-2">스탬프 리스트</h2>
+            <!-- 각 스탬프 아이템 -->
+            <div class="flex items-center mb-2">
+                <img src="stamp1.png" alt="스탬프 1" class="w-6 h-6 mr-2">
+                <p class="text-white">스탬프 1 설명</p>
+            </div>
+            <!-- 다른 스탬프 아이템들 추가 -->
+        </div>
+        <!-- 다른 사이드바 내용들 추가 -->
+    </aside>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 p-4 overflow-hidden">
+        <!-- 로그인 후 대시보드 내용 -->
+        <h2 class="text-2xl font-semibold mb-4">대시보드</h2>
+        
+        <!-- 프로필 정보 -->
+        <div class="bg-white p-4 rounded shadow-md mb-4">
+            <h3 class="text-xl font-semibold mb-2">프로필 정보</h3>
+            <p class="text-gray-600">이름: John Doe</p>
+            <p class="text-gray-600">이메일: john@example.com</p>
+            <!-- 다른 프로필 정보 추가 -->
+        </div>
+
+        <!-- 로그아웃 버튼 -->
+        <button id="logoutButton" class="bg-red-500 text-white py-2 px-4 rounded">로그아웃</button>
+    </main>
+</div>
+
+<!-- 자바스크립트 코드 추가 -->
+<script>
+    document.getElementById('logoutButton').addEventListener('click', function() {
+        // 로그아웃 버튼 클릭 시 인덱스 페이지로 이동
+        window.location.href = 'index.html';
+    });
+</script>
+
+</body>
+</html>

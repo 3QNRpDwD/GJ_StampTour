@@ -123,6 +123,12 @@
         init();
         getClassroomList();
         enableMapZoom(mapView);
+
+    var loginButton = document.getElementById("loginButton");
+    loginButton.addEventListener("click", function () {
+        // Change the window location to the login page URL
+        window.location.href = "http://127.0.0.1:8080/login.html"; // Replace with your actual login page URL
+    });
     }
 </script>
 

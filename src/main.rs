@@ -2,9 +2,36 @@
 use std::{fs::File, io::Read};
 use std::env;
 use std::path::Path;
+use serde_with::serde_as;
+use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
+use actix_web::{App, get, HttpRequest, HttpResponse, HttpServer, Responder, web };
 
+#[derive(Debug, Clone, Serialize)]
+struct Class {
+    class_id: String,
+    class_name: String
+}
 
-use actix_web::{App, get, HttpRequest, HttpResponse, HttpServer, Responder, web};
+#[derive(Debug, Clone, Serialize)]
+struct Stamp {
+    stamp_id: String,
+    stamp_location:String,
+    stamp_name: String,
+    stamp_banner: String
+}
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug)]
+struct ClassList {
+    my_map: HashMap<String, Vec<HashMap<String, String>>>,
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug)]
+struct StampList {
+    my_map: HashMap<String, Vec<HashMap<String, String>>>,
+}
+
 
 #[get("/")]// 메인폼 요청 처리
 async fn index() -> impl Responder {
@@ -18,11 +45,35 @@ async fn handle_404() -> HttpResponse {
     HttpResponse::NotFound().body(path("html", "Error.html").await.unwrap())
 }
 
+// #[get("/api/{file}")]
+// async fn handle_api(file: web::Path<String>) -> impl Responder {
+//     let mut classList: Class = Class::default();
+//     let mut stampList: Stamp = Stamp::default();
+//
+//     if file.to_string() == "classList.json" {
+//         classList = Class::new("a".to_string(), "b".to_string());
+//         unsafe {
+//             CLASSLIST.push(classList.clone());
+//         }
+//         web::Json(classList)
+//     } else if file.to_string() == "stampList.json" {
+//         stampList = Stamp::new("a".to_string(), "b".to_string(), "c".to_string(), "d".to_string());
+//         unsafe {
+//             STAMPLIST.push(stampList.clone());
+//         }
+//         web::Json(stampList)
+//     } else {
+//         // Handle the case when none of the conditions are true
+//         web::Json(Default::default()) // You can change this to an appropriate default value
+//     }
+// }
+
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
 async fn handle_req(req: HttpRequest) -> impl Responder {
-    match path(&*req.match_info().get("folder").unwrap(), req.match_info().query("file")).await {
+    let folder = req.match_info().get("folder").unwrap();
+    match path(&*folder, req.match_info().query("file")).await {
         Ok(result) => HttpResponse::Ok().body(result),
-        Err(e) => HttpResponse::Ok().body(e)
+        Err(e) =>  HttpResponse::Ok().body(e)
     }
 }
 
@@ -118,8 +169,9 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .service(index)
-            .service(handle_req)
             .service(handle_html)
+            // .service(handle_api)
+            .service(handle_req)
             .default_service(web::route().to(handle_404))
     })
         .bind(("127.0.0.1", port))?

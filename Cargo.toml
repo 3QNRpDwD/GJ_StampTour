@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.4.0"
-
+serde = "1.0.193"
+serde_with = "3.4.0"
+uuid = { version = "1.6.1", features = ["serde", "v5"] }
