@@ -77,6 +77,21 @@ async fn handle_req(req: HttpRequest) -> impl Responder {
     }
 }
 
+#[get("/check")] // 동적 페이지 요청 처리
+async fn handle_check_stamp(req: HttpRequest) -> impl Responder {
+    let stamp_id = req.query_string();
+    HttpResponse::Ok().body(format_file(stamp_id).await)
+}
+
+async fn format_file(stamp_id: &str) -> String {
+    match path("html", "stamp_check_page.html").await {
+        Ok(file) => {
+            file.replace("%STAMP_ID%", stamp_id)
+        },
+        Err(_) => "Fail to format".to_string()
+    }
+}
+
 #[get("/{file}")]
 async fn handle_html(req: HttpRequest) -> impl Responder {
     let split_str: Vec<&str> = req.match_info().query("file")
@@ -169,6 +184,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .service(index)
+            .service(handle_check_stamp)
             .service(handle_html)
             // .service(handle_api)
             .service(handle_req)
