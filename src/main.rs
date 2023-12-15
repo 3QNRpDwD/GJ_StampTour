@@ -1,35 +1,26 @@
 
-use std::{fs::File, io::Read};
-use std::env;
+use std::{fs::File, io::Read, env };
 use std::path::Path;
 use serde_with::serde_as;
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
+use serde_json::from_str;
 use actix_web::{App, get, HttpRequest, HttpResponse, HttpServer, Responder, web };
+use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize)]
-struct Class {
-    class_id: String,
-    class_name: String
-}
 
-#[derive(Debug, Clone, Serialize)]
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone)]
 struct Stamp {
-    stamp_id: String,
-    stamp_location:String,
-    stamp_name: String,
-    stamp_banner: String
-}
-#[serde_as]
-#[derive(Serialize, Deserialize, Debug)]
-struct ClassList {
-    my_map: HashMap<String, Vec<HashMap<String, String>>>,
+    stampId: String,
+    stampLocation:String,
+    stampName: String,
+    stampDesc: String
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct StampList {
-    my_map: HashMap<String, Vec<HashMap<String, String>>>,
+    stampList: Vec<Stamp>,
 }
 
 
@@ -45,29 +36,6 @@ async fn handle_404() -> HttpResponse {
     HttpResponse::NotFound().body(path("html", "Error.html").await.unwrap())
 }
 
-// #[get("/api/{file}")]
-// async fn handle_api(file: web::Path<String>) -> impl Responder {
-//     let mut classList: Class = Class::default();
-//     let mut stampList: Stamp = Stamp::default();
-//
-//     if file.to_string() == "classList.json" {
-//         classList = Class::new("a".to_string(), "b".to_string());
-//         unsafe {
-//             CLASSLIST.push(classList.clone());
-//         }
-//         web::Json(classList)
-//     } else if file.to_string() == "stampList.json" {
-//         stampList = Stamp::new("a".to_string(), "b".to_string(), "c".to_string(), "d".to_string());
-//         unsafe {
-//             STAMPLIST.push(stampList.clone());
-//         }
-//         web::Json(stampList)
-//     } else {
-//         // Handle the case when none of the conditions are true
-//         web::Json(Default::default()) // You can change this to an appropriate default value
-//     }
-// }
-
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
 async fn handle_req(req: HttpRequest) -> impl Responder {
     let folder = req.match_info().get("folder").unwrap();
@@ -78,9 +46,42 @@ async fn handle_req(req: HttpRequest) -> impl Responder {
 }
 
 #[get("/check")] // 동적 페이지 요청 처리
-async fn handle_check_stamp(req: HttpRequest) -> impl Responder {
-    let stamp_id = req.query_string();
-    HttpResponse::Ok().body(format_file(stamp_id).await)
+async fn handle_check(req: HttpRequest) -> impl Responder {
+    // web::Redirect::to(format!("https://stamptour.space/stamp?{}", req.query_string())).permanent() // 진짜 쓸거
+    web::Redirect::to(format!("http://127.0.0.1:8080/stamp?{}", req.query_string())).permanent() // 디버깅용
+}
+
+#[get("/stamp")]
+async fn handle_stamp(req: HttpRequest, StampList: web::Data<StampList>) -> impl Responder {
+    println!("접속");
+    let query_stamp = req.query_string().split("s=").collect::<Vec<_>>()[1];
+    let StampList = StampList.get_ref();
+
+    for stamp in &StampList.stampList {
+        if stamp.stampId == query_stamp {
+            return HttpResponse::Ok().body(format_file(&stamp.stampName).await);
+        }
+    }
+
+    // If no matching stamp is found, return a default response
+    HttpResponse::Ok().body(format_file(&query_stamp).await)
+}
+
+
+fn parse_json() -> StampList {
+    // 파일 열기
+    let mut file = File::open("resources/api/stampList.json").expect("Failed to open file");
+
+    // 파일 내용을 문자열로 읽기
+    let mut file_content = String::new();
+    file.read_to_string(&mut file_content)
+        .expect("Failed to read file content");
+
+    // JSON 문자열을 역직렬화하여 구조체로 변환
+    let StampList: StampList = from_str(&file_content).expect("Failed to deserialize JSON");
+
+    StampList
+
 }
 
 async fn format_file(stamp_id: &str) -> String {
@@ -109,7 +110,13 @@ async fn handle_html(req: HttpRequest) -> impl Responder {
     }
 
     match path("html", file).await {
-        Ok(result) => { if result.contains("(os error 2)") { handle_404().await } else { HttpResponse::Ok().body(result) } },
+        Ok(result) => {
+            if result.contains("(os error 2)") {
+                handle_404().await
+            } else {
+                HttpResponse::Ok().body(result)
+            }
+        },
         Err(_) => handle_404().await
     }
 }
@@ -167,6 +174,7 @@ async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
 // 메인 함수
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let StampList: StampList = parse_json();
     let args: Vec<String> = env::args().collect();
     let mut port = 8080;
     let mut mode = "http";
@@ -181,10 +189,12 @@ async fn main() -> std::io::Result<()> {
 
     println!("Rust {} Actix-web server started at 127.0.0.1:{}", mode, port);
 
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         App::new()
+            .app_data(web::Data::new(StampList.clone()))
             .service(index)
-            .service(handle_check_stamp)
+            .service(handle_check)
+            .service(handle_stamp)
             .service(handle_html)
             // .service(handle_api)
             .service(handle_req)

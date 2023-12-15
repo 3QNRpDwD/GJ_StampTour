@@ -1,47 +1,190 @@
 {
     "stampList": [
         {
-            "stampId": "3B562418-C85E-4E4D-9CB2-BF3A8D75AA49",
-            "stampLocation": "DEMO_교실106",
-            "stampName": "프로그래밍 동아리",
-            "stampDesc": "프로그래밍 동아리의 프로젝트 ~",
-            "stampBanner": "3B562418-C85E-4E4D-9CB2-BF3A8D75AA49.png"
+            "stampId": "8FCEF90F-8F73-489B-B42A-FDB1402F8ABF",
+            "stampLocation": "교실105",
+            "stampName": "배드민턴",
+            "stampDesc": "배드민턴 체험"
         },
         {
-            "stampId": "8CDA116E-D6A8-4E97-9E2B-95AE1704B709",
-            "stampLocation": "DEMO_교실107",
-            "stampName": "과학 동아리",
-            "stampDesc": "과학 동아리에서 진행하는 ~",
-            "stampBanner": "8CDA116E-D6A8-4E97-9E2B-95AE1704B709.png"
+            "stampId": "196D927D-DF20-41B1-838D-5E3DFDDFB978",
+            "stampLocation": "물리지학실",
+            "stampName": "프마(과학)",
+            "stampDesc": "할로윈 과학 방탈출카페"
         },
         {
-            "stampId": "B20EAC14-7F0F-4F91-9B18-B77A40EB5CBD",
-            "stampLocation": "DEMO_교실108",
-            "stampName": "수학 동아리",
-            "stampDesc": "수학 동아리의 ~ 행사에 참여해 보세요.",
-            "stampBanner": "B20EAC14-7F0F-4F91-9B18-B77A40EB5CBD.png"
+            "stampId": "51F63C94-D959-4125-871F-26930D2FE715",
+            "stampLocation": "교실204,농구장",
+            "stampName": "농구부",
+            "stampDesc": "자유투, 3점슛(연속 넣기, 제한된 시간 많이 넣기)"
         },
         {
-            "stampId": "717D2CAE-5D59-4ECB-B28A-E79ACAA9F666",
-            "stampLocation": "DEMO_교실108",
-            "stampName": "A 동아리",
-            "stampDesc": "A 동아리의 ~ 행사에 참여해 보세요.",
-            "stampBanner": "717D2CAE-5D59-4ECB-B28A-E79ACAA9F666.png"
+            "stampId": "EBBDAB29-4EBE-4626-9328-1ECB6DA8596F",
+            "stampLocation": "생명과학실",
+            "stampName": "슬기로운 생명과학",
+            "stampDesc": "레진 반지 만들기"
         },
         {
-            "stampId": "C6924050-3F52-4006-846A-F0C883F5C357",
-            "stampLocation": "DEMO_교실108",
-            "stampName": "B 동아리",
-            "stampDesc": "B 동아리의 ~ 행사에 참여해 보세요.",
-            "stampBanner": "C6924050-3F52-4006-846A-F0C883F5C357.png"
+            "stampId": "4280608D-22DB-4345-96DC-6DF5775861E1",
+            "stampLocation": "2학년학습실,이동수업실4",
+            "stampName": "라라파루자(주짓수)",
+            "stampDesc": "팔씨름 경기 및 체력 측정"
         },
         {
-            "stampId": "C6924050-3F52-4006-846A-F0C883F5C357",
-            "stampLocation": "DEMO_교실108",
-            "stampName": "B 동아리",
-            "stampDesc": "B 동아리의 ~ 행사에 참여해 보세요.",
-            "stampBanner": "C6924050-3F52-4006-846A-F0C883F5C357.png"
+            "stampId": "E7F9CA55-68F6-4DAC-8416-2D9510A14A78",
+            "stampLocation": "교실210",
+            "stampName": "근력운동부",
+            "stampDesc": "체력 측정 및 경기"
+        },
+        {
+            "stampId": "53D52C28-9D18-4D52-9231-408C31C63DD3",
+            "stampLocation": "교실206",
+            "stampName": "웨이트트레이닝부",
+            "stampDesc": "각종 경기(팔, 무릎, 손뼉, 앉은뱅이 씨름 등)"
+        },
+        {
+            "stampId": "0B524EB7-54FD-416E-B26D-0C44BA5574A9",
+            "stampLocation": "화학실",
+            "stampName": "화학실험동아리",
+            "stampDesc": "나만의 ps열쇠고리 만들기"
+        },
+        {
+            "stampId": "057207AE-57FE-436C-8210-97F5A861070E",
+            "stampLocation": "교실208",
+            "stampName": "경영경제동아리",
+            "stampDesc": "모의투자, 서명운동"
+        },
+        {
+            "stampId": "051B7657-86AC-481E-B6D4-B8D865D8791F",
+            "stampLocation": "컴퓨터실",
+            "stampName": "프로그래밍부",
+            "stampDesc": "코딩과 친해지기"
+        },
+        {
+            "stampId": "6F5A53D5-FED8-41B4-95BF-072166502084",
+            "stampLocation": "이동수업실3",
+            "stampName": "요리과학부",
+            "stampDesc": "요리관련 퀴즈 맞히기"
+        },
+        {
+            "stampId": "9D30120A-130E-407F-8835-75D25F667800",
+            "stampLocation": "교실107",
+            "stampName": "리딩북스",
+            "stampDesc": "북카페"
+        },
+        {
+            "stampId": "5AF82119-2F07-41D0-BE52-7630B64397F6",
+            "stampLocation": "공용교실",
+            "stampName": "탁구부",
+            "stampDesc": "탁구공으로 캔 맞추기"
+        },
+        {
+            "stampId": "280FFF5E-8011-411D-9291-30F68BC086F2",
+            "stampLocation": "교실101,운동장",
+            "stampName": "축구부",
+            "stampDesc": "축구 볼링"
+        },
+        {
+            "stampId": "D7A8844C-9532-4E10-B2AC-9E7DEE4CD986",
+            "stampLocation": "교실108",
+            "stampName": "수학연구소",
+            "stampDesc": "수학 퀴즈 풀기"
+        },
+        {
+            "stampId": "2064BD05-137B-4B67-ACC7-A85BF22B4119",
+            "stampLocation": "교실102",
+            "stampName": "시시탐탐",
+            "stampDesc": "시사퀴즈풀기(부제: '전쟁속으로')"
+        },
+        {
+            "stampId": "F0D3DA56-792D-442F-8C6C-8982B9454C63",
+            "stampLocation": "이동수업실2,3층홈베이스",
+            "stampName": "창작미술반",
+            "stampDesc": "조명등 만들기(업사이클링)"
+        },
+        {
+            "stampId": "6C29183D-C324-424D-A76B-50043C24C4B8",
+            "stampLocation": "진로활동실",
+            "stampName": "체인지메이커",
+            "stampDesc": "진로와 직업 퀴즈"
+        },
+        {
+            "stampId": "0B06CCF6-89B5-4E99-B3A2-FEDE7E664255",
+            "stampLocation": "교실207",
+            "stampName": "손글씨부",
+            "stampDesc": "타투 및 네잎클로버 코팅 체험"
+        },
+        {
+            "stampId": "C18102FC-BA1D-4ACA-A66C-5D004864A9BF",
+            "stampLocation": "컴퓨터실",
+            "stampName": "중국 문화 체험반",
+            "stampDesc": "판다 키링 만들기, 판다 월병 만들기"
+        },
+        {
+            "stampId": "8880A45B-9D6A-4039-A08F-DA686B1177B7",
+            "stampLocation": "교실111",
+            "stampName": "세계시민반",
+            "stampDesc": "사진전, 사진 찍기, 퀴즈 맞히기 등"
+        },
+        {
+            "stampId": "3A893BC2-F832-432D-B9AE-B01E1D2414E8",
+            "stampLocation": "교실110",
+            "stampName": "세계문화이해반",
+            "stampDesc": "먹거리"
+        },
+        {
+            "stampId": "3869118B-13F0-4678-BE3C-230338D185F1",
+            "stampLocation": "교실209",
+            "stampName": "세담글",
+            "stampDesc": "방탈출"
+        },
+        {
+            "stampId": "403CB72E-1707-4DE0-A3ED-F7DC7B1F1099",
+            "stampLocation": "교실202",
+            "stampName": "사진과 비평",
+            "stampDesc": "미션 순간포착!"
+        },
+        {
+            "stampId": "BD3C759A-6A5E-4BCA-A5B6-7DFE0CBAAAD6",
+            "stampLocation": "교실201",
+            "stampName": "디자인경영부",
+            "stampDesc": "무알콜 칵테일 만들기, 캐리커쳐 그리기"
+        },
+        {
+            "stampId": "6003BB29-928D-4568-8CC7-3211251C9061",
+            "stampLocation": "교실211",
+            "stampName": "블러디(특수분장)",
+            "stampDesc": "페이스페인팅 및 분장 체험"
+        },
+        {
+            "stampId": "2684375D-A9F2-4B4A-A09C-2D585A852D30",
+            "stampLocation": "교실109",
+            "stampName": "역사 전시 기획 동아리",
+            "stampDesc": "역사 인물 MBTI 맞히기"
+        },
+        {
+            "stampId": "E9867D7A-8514-444F-96A0-1A3FB0BC3B8A",
+            "stampLocation": "교실104",
+            "stampName": "영어북클럽",
+            "stampDesc": "동아리 활동 사진 전시"
+        },
+        {
+            "stampId": "1AD18908-00E1-415C-BF75-E7CDBB695F16",
+            "stampLocation": "교실106,2층홈베이스",
+            "stampName": "윤리 신문 만들기",
+            "stampDesc": "윤리 신문 전시"
+        },
+        {
+            "stampId": "C18102FC-BA1D-4ACA-A66C-5D004864A9BF",
+            "stampLocation": "3층홈베이스",
+            "stampName": "통합 미술부",
+            "stampDesc": "미술작품 전시"
+        },
+        {
+            "stampId": "DF5DCA0D-5B9D-4CD5-B94B-AA66773AAAF8",
+            "stampLocation": "교실205,1층홈베이스",
+            "stampName": "SNS 기자단",
+            "stampDesc": "SNS 기사 한마당"
         }
-
     ]
 }
