@@ -1,0 +1,102 @@
+<!--
+  scanner.html
+  GJ_StampTour
+
+  Created by Js Na on 2023/12/13.
+  Copyright © 2023 Js Na, All rights reserved.
+-->
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>태그 스캔 | 스탬프투어</title>
+    <style>
+        @import url('/css/font.css');
+        @import url('/css/root.css');
+        .MainContainer {
+            margin-top: 4em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #ScanResultContainer {
+            position: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 8em;
+            background-color: #f2f2f7;
+            z-index: 999;
+        }
+        #CheckIcon {
+            width: 3em;
+            height: 3em;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="titleBar" class="titleBar">
+        <img class="titleLogo" src="/images/StampTourLogo.png" alt="스탬프투어">
+        <h1>태그 스캔</h1>
+    </div>
+    <div class="MainContainer">
+        <video id="video" width="500" height="500" autoplay muted playsinline></video>
+    </div>
+    <div id="ScanResultContainer">
+        <img id="CheckIcon" src="/images/check.svg">
+        <h3 id="ScanResult">스탬프의 아이콘을 카메라로 스캔해 주세요</h3>
+    </div>
+</body>
+<script type="text/javascript" src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="/scripts/root.js"></script>
+<script>
+    window.addEventListener('load', async function () {
+        const codeReader = new ZXing.BrowserDatamatrixCodeReader();
+        console.log('ZXing BrowserDatamatrixCodeReader initialized');
+
+        let video = document.getElementById("video");
+        let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        video.srcObject = stream;
+        let selectedDeviceId = stream.getVideoTracks()[0].getSettings().deviceId;
+        codeReader.decodeFromInputVideoDeviceContinuously(selectedDeviceId, 'video', (result, err) => {
+            if (result) {
+                console.log('Found Data Matrix code!', result);
+                if (result.text == "S10") {
+                    checkStamp("3B562418-C85E-4E4D-9CB2-BF3A8D75AA49");
+                    eById("ScanResult").innerText = "스탬프 인식 완료. 메인 화면으로 이동합니다.";
+                    eById("CheckIcon").style.display = "block";
+                    setTimeout(() => {
+                        window.opener=null; window.open('','_self'); window.close(); window.history.go(-1); $(document.body).hide();
+                        window.location.href = "/";
+                    }, 3000);
+                }
+            } else if (err) {
+                console.error(err);
+            }
+        });
+    });
+    function checkStamp(stampId) {
+        let stampJSON = getCookie("LocalStamp");
+        if (stampJSON == null) {
+            // new array
+            let stampList = [stampId];
+            console.log(stampList);
+            console.log(JSON.stringify(stampList));
+            setCookie("LocalStamp", JSON.stringify(stampList), 7);
+        } else {
+            stampJSON = decodeURIComponent(stampJSON);
+            let stampList = JSON.parse(stampJSON);
+            stampList.push(stampId);
+            setCookie("LocalStamp", JSON.stringify(stampList), 7);
+        }
+    }
+</script>
+
+</html>

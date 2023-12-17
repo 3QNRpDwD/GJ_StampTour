@@ -1,11 +1,11 @@
 {
     "classList": [
         {
-            "classId": "DEMO_교실206",
+            "classId": "교실206",
             "className": "교실 2-6"
         },
         {
-            "classId": "DEMO_교실208",
+            "classId": "교실208",
             "className": "교실 2-8"
         }
     ]

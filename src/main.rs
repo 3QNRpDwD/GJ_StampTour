@@ -1,10 +1,12 @@
 
-use std::{fs::File, io::Read, env };
-use std::path::Path;
+use std::{fs::File, io::Read, env , path::Path};
+use std::os::raw::c_char;
 use serde_with::serde_as;
 use serde::{Serialize, Deserialize};
 use serde_json::from_str;
-use actix_web::{App, get, HttpRequest, HttpResponse, HttpServer, Responder, web };
+use actix_web::{middleware, App, get, HttpRequest, HttpResponse, HttpServer, Responder, web };
+use log::info;
+use regex::Regex;
 use uuid::Uuid;
 
 
@@ -23,6 +25,17 @@ struct StampList {
     stampList: Vec<Stamp>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct UserName {
+    username: String,
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Userid {
+    user_name: String,
+    user_id: Uuid
+}
 
 #[get("/")]// 메인폼 요청 처리
 async fn index() -> impl Responder {
@@ -48,12 +61,11 @@ async fn handle_req(req: HttpRequest) -> impl Responder {
 #[get("/check")] // 동적 페이지 요청 처리
 async fn handle_check(req: HttpRequest) -> impl Responder {
     // web::Redirect::to(format!("https://stamptour.space/stamp?{}", req.query_string())).permanent() // 진짜 쓸거
-    web::Redirect::to(format!("http://127.0.0.1:8080/stamp?{}", req.query_string())).permanent() // 디버깅용
+    web::Redirect::to(format!("http://192.168.0.9:80/stamp?{}", req.query_string())).permanent() // 디버깅용
 }
 
 #[get("/stamp")]
 async fn handle_stamp(req: HttpRequest, StampList: web::Data<StampList>) -> impl Responder {
-    println!("접속");
     let query_stamp = req.query_string().split("s=").collect::<Vec<_>>()[1];
     let StampList = StampList.get_ref();
 
@@ -65,6 +77,17 @@ async fn handle_stamp(req: HttpRequest, StampList: web::Data<StampList>) -> impl
 
     // If no matching stamp is found, return a default response
     HttpResponse::Ok().body(format_file(&query_stamp).await)
+}
+
+async fn handle_login(user_name: web::Json<UserName>, req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok().json(user_registration(user_name.0))
+}
+
+fn user_registration(user_name: UserName) -> Userid{
+    Userid {
+        user_name: user_name.username,
+        user_id: uuid::Uuid::new_v4(),
+    }
 }
 
 
@@ -128,13 +151,13 @@ async fn path(folder: &str, file: &str) -> Result<String, Vec<u8>> {
     let file_path = env::current_exe()
         .map(|exe_path| exe_path.parent().map_or(Default::default(), |exe_dir| exe_dir.join(Path::new(&format!( "resources\\{}\\{}", folder,   file)))))
         .unwrap_or_else(|e| {
-            eprintln!("Failed to get the current executable path: {}", e);
+            // eprintln!("Failed to get the current executable path: {}", e);
             Default::default()
         });
 
     match read_file(file_path.as_path()).await {
-        Ok(v) => { println!(" 텍스트 파일: {},", file); Ok(v)},
-        Err(e) => { println!(" 바이너리 파일: {}", file); Err(e) }
+        Ok(v) => Ok(v),
+        Err(e) =>  Err(e)
     }
 }
 
@@ -146,7 +169,7 @@ async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
     // Use map_err to convert the error to a string before returning it.
     File::open(path)
         .map_err(|e| {
-            println!("파일 {:?} 의 경로를 찾을수 없습니다.", path);
+            // println!("파일 {:?} 의 경로를 찾을수 없습니다.", path);
             contents.extend_from_slice(&e.to_string().as_bytes())
         })
         .and_then(|mut file| {
@@ -174,34 +197,38 @@ async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
 // 메인 함수
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
     let StampList: StampList = parse_json();
     let args: Vec<String> = env::args().collect();
-    let mut port = 8080;
-    let mut mode = "http";
 
-    match args.len() {
-        2 if args[1].parse::<i32>().is_ok() => { port = args[1].parse().unwrap(); }
-        2 => { mode = &args[1]; }
-        3 if args[2].parse::<i32>().is_ok() => { port = args[2].parse().unwrap(); mode = &args[1]; }
-        3 if args[1].parse::<i32>().is_ok() => { port = args[1].parse().unwrap();mode = &args[2]; }
-        _ => {}
-    }
+    // Set default values
+    let default_address = "127.0.0.1".to_string();
+    let default_port = "80".to_string();
+    let default_protocol = "http".to_string();
 
-    println!("Rust {} Actix-web server started at 127.0.0.1:{}", mode, port);
+    // Parse command line arguments
+    let address = args.get(1).unwrap_or(&default_address).to_string();
+    let port = args.get(2).unwrap_or(&default_port).parse::<u16>().unwrap_or(80);
+    let protocol = args.get(3).unwrap_or(&default_protocol).to_string();
+
+    info!("Rust {} Actix-web server started at http://{}:{}", protocol, address, port);
 
     HttpServer::new(move || {
         App::new()
+            .wrap(middleware::Logger::default())
             .app_data(web::Data::new(StampList.clone()))
+            .service(web::resource("/login").route(web::post().to(handle_login)))
             .service(index)
             .service(handle_check)
             .service(handle_stamp)
             .service(handle_html)
-            // .service(handle_api)
             .service(handle_req)
             .default_service(web::route().to(handle_404))
     })
-        .bind(("127.0.0.1", port))?
+        .bind((address.as_str(), port))?
         .run()
         .await
 }
+
 

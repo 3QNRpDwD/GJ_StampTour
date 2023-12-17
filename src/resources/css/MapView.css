@@ -1,0 +1,50 @@
+.MapContainer {
+    width: 100%;
+    height: 100%;
+}
+.MapContainer iframe {
+    width: 100%;
+    height: 100%;
+    display: none;
+}
+.MapContainer iframe.active {
+    display: block;
+}
+.map {
+    width: 1400px;
+    height: 1400px;
+}
+
+svg text {
+    font-size: 1.5em;
+    font-weight: bold;
+    fill: #000000;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+rect {
+    stroke: black;
+}
+
+.classroom {
+    fill: #4E7CF133;
+}
+
+.classroom.active {
+    fill: #4E7CF1FF;
+}
+
+.notClassroom {
+    fill: #3c3c3f;
+}
+
+.restroom text,
+.notClassroom text {
+    fill: #ffffff;
+}
+
+.hallway {
+    fill: #ececec;
+    stroke: none;
+}

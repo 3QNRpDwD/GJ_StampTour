@@ -1,0 +1,89 @@
+.StampView {
+    background-color: #2C2C2E;
+    color: #FFFFFF;
+    width: 100%;
+    height: 5em;
+    position: fixed;
+    border-radius: 30px 30px 0 0;
+    bottom: 0;
+    padding: 0 1em 1em 1em;
+    box-sizing: border-box;
+    transition: all 0.5s ease;
+    z-index: 9999;
+    overflow: hidden;
+}
+
+.StampViewTitle {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.StampViewTitle a {
+    margin-top: 1em;
+}
+
+.stampList {
+    width: 100%;
+    height: 80%;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    display: none;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    align-items: center;
+    box-sizing: border-box;
+    padding: 1em;
+}
+
+.stampList div {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    position: relative;
+}
+.stampList div span {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    margin-left: 3.5em;
+}
+.stampList div span * {
+    margin: 0;
+    padding: 0;
+}
+.stampList div span p {
+    opacity: 0.5;
+}
+
+.stamp {
+    width: 100%;
+    height: 4em;
+    filter: grayscale(100%);
+}
+
+.stamp.checked {
+    filter: grayscale(0%);
+}
+.stamp.checked img.CheckMark {
+    opacity: 1;
+}
+
+.stamp img {
+    height: 3em;
+    position: absolute;
+}
+.stamp img.CheckMark {
+    opacity: 0;
+    transition: all 0.5s ease;
+}
+
+.StampView.open {
+    height: 80%;
+}
+
+.StampView .stampList {
+    display: flex;
+}

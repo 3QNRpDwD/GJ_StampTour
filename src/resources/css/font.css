@@ -1,5 +1,5 @@
 /*
-  root.css
+  font.css
   GJ_StampTour
 
   Created by Js Na on 2023/09/15.
@@ -10,36 +10,36 @@
 /*
 @font-face {
     font-family: 'SeoulNamsan';
-    src: url('../fonts/SeoulNamsanL.woff2') format("woff2"),
-        url('../fonts/SeoulNamsanL.woff') format("woff"),
-        url('../fonts/SeoulNamsanL.ttf') format("truetype");
+    src: url('/fonts/SeoulNamsanL.woff2') format("woff2"),
+        url('/fonts/SeoulNamsanL.woff') format("woff"),
+        url('/fonts/SeoulNamsanL.ttf') format("truetype");
     font-weight: 300;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'SeoulNamsan';
-    src: url('../fonts/SeoulNamsanM.woff2') format("woff2"),
-        url('../fonts/SeoulNamsanM.woff') format("woff"),
-        url('../fonts/SeoulNamsanM.ttf') format("truetype");
+    src: url('/fonts/SeoulNamsanM.woff2') format("woff2"),
+        url('/fonts/SeoulNamsanM.woff') format("woff"),
+        url('/fonts/SeoulNamsanM.ttf') format("truetype");
     font-weight: normal;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'SeoulNamsan';
-    src: url('../fonts/SeoulNamsanB.woff2') format("woff2"),
-        url('../fonts/SeoulNamsanB.woff') format("woff"),
-        url('../fonts/SeoulNamsanB.ttf') format("truetype");
+    src: url('/fonts/SeoulNamsanB.woff2') format("woff2"),
+        url('/fonts/SeoulNamsanB.woff') format("woff"),
+        url('/fonts/SeoulNamsanB.ttf') format("truetype");
     font-weight: 700;
     font-style: normal;
 }
 
 @font-face {
     font-family: 'SeoulNamsan';
-    src: url('../fonts/SeoulNamsanEB.woff2') format("woff2"),
-        url('../fonts/SeoulNamsanEB.woff') format("woff"),
-        url('../fonts/SeoulNamsanEB.ttf') format("truetype");
+    src: url('/fonts/SeoulNamsanEB.woff2') format("woff2"),
+        url('/fonts/SeoulNamsanEB.woff') format("woff"),
+        url('/fonts/SeoulNamsanEB.ttf') format("truetype");
     font-weight: 800;
     font-style: normal;
 } */
@@ -47,7 +47,7 @@
 
 
 /* Gmarket Sans */
-
+/*
 @font-face {
     font-family: 'GmarketSans';
     src: url('/fonts/GmarketSansLight.woff2') format("woff2"),
@@ -73,4 +73,68 @@
         url('/fonts/GmarketSansBold.ttf') format("truetype");
     font-weight: 700;
     font-style: normal;
+} */
+
+/* Pretendard */
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 900;
+	font-display: swap;
+	src: local('Pretendard Black'), url(/fonts/Pretendard-Black.subset.woff2) format('woff2'), url(/fonts/Pretendard-Black.subset.woff) format('woff'), url(/fonts/Pretendard-Black.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 800;
+	font-display: swap;
+	src: local('Pretendard ExtraBold'), url(/fonts/Pretendard-ExtraBold.subset.woff2) format('woff2'), url(/fonts/Pretendard-ExtraBold.subset.woff) format('woff'), url(/fonts/Pretendard-ExtraBold.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 700;
+	font-display: swap;
+	src: local('Pretendard Bold'), url(/fonts/Pretendard-Bold.subset.woff2) format('woff2'), url(/fonts/Pretendard-Bold.subset.woff) format('woff'), url(/fonts/Pretendard-Bold.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 600;
+	font-display: swap;
+	src: local('Pretendard SemiBold'), url(/fonts/Pretendard-SemiBold.subset.woff2) format('woff2'), url(/fonts/Pretendard-SemiBold.subset.woff) format('woff'), url(/fonts/Pretendard-SemiBold.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 500;
+	font-display: swap;
+	src: local('Pretendard Medium'), url(/fonts/Pretendard-Medium.subset.woff2) format('woff2'), url(/fonts/Pretendard-Medium.subset.woff) format('woff'), url(/fonts/Pretendard-Medium.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 400;
+	font-display: swap;
+	src: local('Pretendard Regular'), url(/fonts/Pretendard-Regular.subset.woff2) format('woff2'), url(/fonts/Pretendard-Regular.subset.woff) format('woff'), url(/fonts/Pretendard-Regular.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 300;
+	font-display: swap;
+	src: local('Pretendard Light'), url(/fonts/Pretendard-Light.subset.woff2) format('woff2'), url(/fonts/Pretendard-Light.subset.woff) format('woff'), url(/fonts/Pretendard-Light.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 200;
+	font-display: swap;
+	src: local('Pretendard ExtraLight'), url(/fonts/Pretendard-ExtraLight.subset.woff2) format('woff2'), url(/fonts/Pretendard-ExtraLight.subset.woff) format('woff'), url(/fonts/Pretendard-ExtraLight.subset.ttf) format('truetype');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 100;
+	font-display: swap;
+	src: local('Pretendard Thin'), url(/fonts/Pretendard-Thin.subset.woff2) format('woff2'), url(/fonts/Pretendard-Thin.subset.woff) format('woff'), url(/fonts/Pretendard-Thin.subset.ttf) format('truetype');
 }

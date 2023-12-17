@@ -1,0 +1,62 @@
+<!--
+  error404.html
+  GJ_StampTour
+
+  Created by Js Na on 2023/12/01.
+  Copyright © 2023 Js Na, All rights reserved.
+-->
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 NOT FOUND</title>
+    <style>
+        @import url('/css/font.css');
+        @import url('/css/root.css');
+        
+        .MainContainer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .MainContainer h1 {
+            font-size: 4em;
+            margin: 0;
+        }
+        .MainContainer p {
+            margin: 5px;
+            opacity: 0;
+            animation: 0.5s ease-in-out 0.5s forwards slideAndFadeIn;
+        }
+        @keyframes slideAndFadeIn {
+            from {
+                transform: translateY(-50%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="titleBar" class="titleBar">
+        <img class="titleLogo" src="/images/StampTourLogo.png" alt="스탬프투어"><h1>오류 페이지</h1>
+    </div>
+    <div class="MainContainer">
+        <h1>404 Not Found</h1>
+        <p>요청하신 페이지를 찾을 수 없습니다.</p>
+        <p><a href="/">메인 페이지로 이동</a></p>
+    </div>
+</body>
+</html>
+</html>
