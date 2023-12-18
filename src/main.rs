@@ -94,11 +94,11 @@ async fn handle_stamp(req: HttpRequest, StampList: Data<StampList>) -> impl Resp
     handle_404().await
 }
 
-async fn handle_login(user_name: Json<UserName>, user_list: Data<UserList>) -> HttpResponse {
+async fn handle_login(user_name: Json<UserName>) -> HttpResponse {
     println!("{:?}", user_name.0);
     let user = user_registration(user_name.0);
     // user_list.users.append(user);
-    HttpResponse::Ok().json(user)
+    HttpResponse::Ok().json(user.await)
 }
 
 async fn user_registration(user_name: UserName) -> User {
