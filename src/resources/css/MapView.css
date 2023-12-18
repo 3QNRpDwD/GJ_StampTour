@@ -2,14 +2,35 @@
     width: 100%;
     height: 100%;
 }
-.MapContainer iframe {
-    width: 100%;
-    height: 100%;
-    display: none;
+.MapContainer svg {
+    width: 1400px;
+    height: 1400px;
+    visibility: hidden;
+    position: absolute;
+    background: none;
 }
-.MapContainer iframe.active {
-    display: block;
+#MainMapView {
+    background-color: #ffffff;
 }
+
+.MapContainer svg.active {
+    visibility: visible;
+}
+
+.MapContainer svg.ZoomInAndFadeIn {
+    animation: ZoomInAndFadeIn 0.3s ease;
+}
+.MapContainer svg.ZoomOutAndFadeIn {
+    animation: ZoomOutAndFadeIn 0.3s ease;
+}
+
+.MapContainer svg.ZoomInAndFadeOut {
+    animation: ZoomInAndFadeOut 0.3s ease;
+}
+.MapContainer svg.ZoomOutAndFadeOut {
+    animation: ZoomOutAndFadeOut 0.3s ease;
+}
+
 .map {
     width: 1400px;
     height: 1400px;
@@ -18,33 +39,101 @@
 svg text {
     font-size: 1.5em;
     font-weight: bold;
-    fill: #000000;
+    fill: #ffffff;
+    stroke: none;
     text-anchor: middle;
     dominant-baseline: middle;
 }
 
 rect {
-    stroke: black;
+    stroke: #809bf3;
 }
 
 .classroom {
-    fill: #4E7CF133;
-}
-
-.classroom.active {
-    fill: #4E7CF1FF;
+    fill: #4E7CF1;
 }
 
 .notClassroom {
-    fill: #3c3c3f;
+    fill: #4E7CF133;
 }
 
-.restroom text,
 .notClassroom text {
-    fill: #ffffff;
+    fill: #000000;
 }
 
 .hallway {
-    fill: #ececec;
+    fill: #eaeaea;
     stroke: none;
+}
+
+@keyframes ZoomInOutAndFadeInOut {
+    0% {
+        transform-origin: center;
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform-origin: center;
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    51% {
+        transform-origin: center;
+        transform: scale(1.1);
+        opacity: 0;
+    }
+    100% {
+        transform-origin: center;
+        transform: scale(1.1);
+        opacity: 1;
+    }
+}
+
+@keyframes ZoomInAndFadeIn {
+    0% {
+        transform-origin: center;
+        /* transform: scale(0.9); */
+        opacity: 0;
+    }
+    100% {
+        transform-origin: center;
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+@keyframes ZoomOutAndFadeIn {
+    0% {
+        transform-origin: center;
+        /* transform: scale(1.1); */
+        opacity: 0;
+    }
+    100% {
+        transform-origin: center;
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+@keyframes ZoomInAndFadeOut {
+    0% {
+        transform-origin: center;
+        /* transform: scale(1); */
+        opacity: 1;
+    }
+    100% {
+        transform-origin: center;
+        transform: scale(1.1);
+        opacity: 0;
+    }
+}
+@keyframes ZoomOutAndFadeOut {
+    0% {
+        transform-origin: center;
+        /* transform: scale(1); */
+        opacity: 1;
+    }
+    100% {
+        transform-origin: center;
+        transform: scale(0.9);
+        opacity: 0;
+    }
 }

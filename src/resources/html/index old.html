@@ -16,7 +16,6 @@
         @import url('/css/font.css');
         @import url('/css/root.css');
         @import url('/css/StampListView.css');
-        @import url('/css/MapView.css');
 
         #GuideModalContainer {
             z-index: 56789;
@@ -44,6 +43,7 @@
         */
         .GuideContainer {
             padding: 1em;
+            margin-top: 3em;
             box-sizing: border-box;
         }
 
@@ -84,7 +84,7 @@
             height: 2em;
             border: none;
             border-radius: 10px;
-            margin: 0 1em 1em;
+            margin: 1em;
             transition: background-color 0.2s ease-in-out;
         }
 
@@ -97,40 +97,14 @@
             text-align: center;
             word-break: keep-all;
         }
-        #PrivacyPolicyCheckboxContainer {
-            display: none;
-            flex-direction: row;
-            align-items: center;
-            justify-content: center;
-        }
+
         #GuideText {
-            font-weight: 600;
+            font-weight: 800;
+
         }
-        #UserRegisterContainer {
-            margin: 5em 0;
-        }
-        .UserRegisterInput {
-            display: none;
-            opacity: 0;
-            width: 100%;
-            border: 1px solid #AFAFAF;
-            border-radius: 25px;
-            font-size: 1.3em;
-            margin: 0.5em 0;
-            padding: 0.2em;
-            box-sizing: border-box;
-            text-align: center;
-            transition: all 0.5s ease-in-out;
-        }
-        .UserRegisterInput.show {
-            opacity: 1;
-        }
-        .UserRegisterInput:focus {
-            border: 1px solid #4E7CF1;
-            outline: 1px solid #4E7CF1;
-        }
+
         #ReplayButtonContainer {
-            visibility: hidden;
+            display: none;
             text-align: center;
         }
 
@@ -175,7 +149,6 @@
             color: #FFFFFF;
             margin-bottom: 0.2em;
         }
-
     </style>
 </head>
 
@@ -184,12 +157,99 @@
         <img class="titleLogo" src="/images/StampTourLogo.png" alt="스탬프투어">
         <h1>4층</h1>
     </div>
-    <div id="MapContainer" class="MainContainer MapContainer">
-        <iframe id="MapViewFloor1" class="active" src="/map/Floor1.html"></iframe>
-        <iframe id="MapViewFloor2" src="/map/Floor2.html"></iframe>
-        <iframe id="MapViewFloor3" src="/map/Floor3.html"></iframe>
-        <iframe id="MapViewFloor4" src="/map/Floor4.html"></iframe>
-        </div>
+    <div id="MapContainer" class="MainContainer">
+        <svg id="mapFloor2" class="map">
+            <g id="복도">
+                <rect class="hallway" x="150" y="100" width="50" height="300" />
+                <rect class="hallway" x="150" y="400" width="1100" height="50" />
+                <rect class="hallway" x="850" y="0" width="50" height="400" />
+                <rect class="hallway" x="1200" y="450" width="50" height="550" />
+                <polygon class="hallway" points="90,360 130,400 150,400 150,500 130,500 90,540 0,450" />
+                <rect class="hallway" x="150" y="450" width="150" height="100" />
+                <!--계단-->
+                <rect class="hallway" x="1100" y="450" width="50" height="100" />
+                <rect class="hallway" x="1100" y="450" width="50" height="100" />
+                <rect class="hallway" x="800" y="0" width="50" height="100" />
+                <!--차오름관연결통로-->
+                <rect class="hallway" x="200" y="550" width="100" height="150" />
+
+            </g>
+            <g id="교실">
+                <g id="화학실" class="classroom">
+                    <rect x="100" y="0" width="150" height="100" />
+                    <text x="175" y="50">화학실</text>
+                </g>
+                <rect class="notClassroom" x="250" y="0" width="50" height="100" />
+                <g id="생명과학실" class="classroom">
+                    <rect x="200" y="100" width="100" height="150" />
+                    <text x="250" y="175" style="font-size: 1em;">생명과학실</text>
+                </g>
+                <g id="학생회실" class="notClassroom">
+                    <rect x="100" y="100" width="50" height="100" />
+                    <text x="125" y="150" style="font-size: 1em; writing-mode: vertical-rl;">학생회실</text>
+                </g>
+                <g id="진로상담부" class="notClassroom">
+                    <rect x="200" y="250" width="100" height="50" />
+                    <text x="250" y="275" style="font-size: 1em;">진로상담부</text>
+                </g>
+                <g id="교실106" class="classroom">
+                    <rect x="300" y="450" width="150" height="100" />
+                    <text x="375" y="500">교실 1-6</text>
+                </g>
+                <g id="교실107" class="classroom">
+                    <rect x="450" y="450" width="150" height="100" />
+                    <text x="525" y="500">교실 1-7</text>
+                </g>
+                <g id="방송실" class="notClassroom">
+                    <rect x="600" y="450" width="150" height="100" />
+                    <text x="675" y="500">방송실</text>
+                </g>
+                <g id="교무실" class="notClassroom">
+                    <rect x="750" y="450" width="150" height="100" />
+                    <text x="825" y="500">교무실</text>
+                </g>
+                <rect class="notClassroom" x="900" y="450" width="150" height="100" />
+                <g id="교실108" class="classroom">
+                    <rect x="1250" y="400" width="100" height="150" />
+                    <text x="1300" y="475">교실 1-8</text>
+                </g>
+                <g id="교실109" class="classroom">
+                    <rect x="1250" y="550" width="100" height="150" />
+                    <text x="1300" y="625">교실 1-9</text>
+                </g>
+                <g id="교실110" class="classroom">
+                    <rect x="1250" y="700" width="100" height="150" />
+                    <text x="1300" y="775">교실 1-10</text>
+                </g>
+                <g id="교실111" class="classroom">
+                    <rect x="1250" y="850" width="100" height="150" />
+                    <text x="1300" y="925">교실 1-11</text>
+                </g>
+                <g id="화장실1" class="notClassroom">
+                    <rect x="200" y="300" width="100" height="100" />
+                    <text x="250" y="350">화장실</text>
+                </g>
+                <g id="화장실2" class="notClassroom">
+                    <rect x="750" y="300" width="100" height="100" />
+                    <text x="800" y="350">화장실</text>
+                </g>
+    
+                <g id="교무실" class="notClassroom">
+                    <rect x="900" y="300" width="100" height="100" />
+                    <text x="950" y="350">교무실</text>
+                </g>
+                <rect class="notClassroom" x="1050" y="450" width="50" height="100" />
+                <rect class="notClassroom" x="900" y="0" width="100" height="200" />
+                <g id="공용교실" class="classroom">
+                    <rect x="900" y="200" width="100" height="100" />
+                    <text x="950" y="250">공용교실</text>
+                </g>
+                <g id="차오름관" class="classroom">
+                    <rect x="150" y="700" width="200" height="300" />
+                    <text x="250" y="850">차오름관</text>
+            </g>
+        </svg>
+    </div>
     <div id="ClassInfoModalContainer" class="ModalContainer">
         <div id="ClassInfoModal" class="Modal">
             <div class="ModalTitleContainer">
@@ -211,22 +271,16 @@
     <div id="GuideModalContainer" class="ModalContainer">
         <div id="GuideModal" class="Modal">
             <div class="GuideContainer">
-                <span id="GuideTitleContainer">
-                    <h1 id="GuideTitle">스탬프투어 참여 방법</h1>
+                <span id="GuideTitle">
+                    <h1>스탬프투어 참여 방법</h1>
                     <p id="GuideHint">참여 방법을 알려 드릴게요.</p>
                 </span>
                 <hr>
                 <video id="GuideVideo" class="GuideVideo" playsinline muted>
                 </video>
-                <div id="UserRegisterContainer">
-                    <input id="StudentIdInput" class="UserRegisterInput" type="number" placeholder="학번">
-                    <input id="StudentNameInput" class="UserRegisterInput" type="text" placeholder="이름">
-                </div>
-                <div id="PrivacyPolicyCheckboxContainer">
-                <input type="checkbox" id="PrivacyPolicyCheckbox">
-                <label for="PrivacyPolicyCheckbox"><a href="/privacypolicy">개인정보처리방침에</a> 동의합니다.</label>
-                </div>
-                <h3 id="GuideText" class="GuideText"></h3>
+                <h3 id="GuideText" class="GuideText">
+                    <span id="GuideText"></span>
+                </h3>
                 <div id="ReplayButtonContainer">
                     <button id="ReplayGuideButton" class="LinkButton">다시 보기 &gt;</a>
                 </div>
@@ -248,21 +302,13 @@
     <div id="StampView" class="StampView"></div>
 
 </body>
+<script src="https://unpkg.com/panzoom@9.4.3/dist/panzoom.min.js"></script>
 <script src="/scripts/root.js"></script>
-<script src="/scripts/index list.js"></script>
+<script src="/scripts/index.js"></script>
 <script src="/scripts/JsAPI.js"></script>
 <script>
-        let MapView = eById("MapViewFloor1");
-        // MapContainer get child element that has class "classroom"
-        let classroomList = MapView.contentDocument.body.getElementsByClassName("classroom");
-        console.log(classroomList);
-        for (let i = 0; i < classroomList.length; i++) {
-            classroomList[i].addEventListener("click", () => {
-                console.log(classroomList[i].id);
-                eById("ClassInfoModalContainer").style.display = "flex";
-                eById("ModalTitle").innerText = classroomList[i].id;
-            });
-        }
+    let MapContainer = eById("MapContainer");
+    let MapView = eById("mapFloor2");
     let StampView = eById("StampView");
     let GuideModalContainer = eById("GuideModalContainer");
     eById("Floor1").addEventListener("click", () => {
@@ -293,6 +339,7 @@
     window.onload = function () {
         init();
         getClassroomList();
+        enableMapZoom(MapView);
         if (getCookie("ShowGuide") == null) {
             //window.location.href = "/guide";
             GuideModalContainer.style.display = "flex";
@@ -305,6 +352,15 @@
     let touchstartY = 0;
     let touchendY = 0;
 
+    // MapContainer get child element that has class "classroom"
+    let classroomList = MapContainer.getElementsByClassName("classroom");
+    for (let i = 0; i < classroomList.length; i++) {
+        classroomList[i].addEventListener("click", () => {
+            console.log(classroomList[i].id);
+            eById("ClassInfoModalContainer").style.display = "flex";
+            eById("ModalTitle").innerText = classroomList[i].id;
+        });
+    }
     function checkDirection() {
         if (touchendY < touchstartY) {
             if (!StampView.classList.contains("open")) {
@@ -411,42 +467,13 @@
                 }
                 setTimeout(() => {
                     VideoPlayer.pause();
+                    NextGuideButton.innerText = "시작하기";
                     NextGuideButton.disabled = false;
-                    eById("ReplayButtonContainer").style.visibility = "visible";
+                    eById("ReplayButtonContainer").style.display = "block";
                 }, 4000);
                 guidePage += 1;
                 break;
             case 2:
-                NextGuideButton.disabled = true;
-                NextGuideButton.innerText = "시작하기";
-                GuideText.style.display = "none";
-                VideoPlayer.style.display = "none";
-                eById("ReplayButtonContainer").style.display = "none";
-                eById("PrivacyPolicyCheckboxContainer").style.display = "flex";
-
-                eById("GuideTitle").innerText = "시작 전 본인의 정보를 알려주세요";
-                eById("GuideHint").innerText = "타인의 정보를 도용할 경우 불이익이 있을 수 있습니다.";
-                eById("GuideHint").style.color = "#FF0000";
-                let StudentIdInput = eById("StudentIdInput");
-                let StudentNameInput = eById("StudentNameInput");
-                StudentIdInput.addEventListener("input", () => {
-                    let l = StudentIdInput.value.length;
-                    if (l >= 6) {
-                        StudentIdInput.value = StudentIdInput.value.slice(0, 5);
-                    } else if (l >= 5) {
-                        StudentNameInput.focus();
-                    }
-                });
-                StudentIdInput.style.display = "block";
-                StudentNameInput.style.display = "block";
-                setTimeout(() => {
-                    StudentIdInput.classList.add("show");
-                    StudentNameInput.classList.add("show");
-                }, 100);
-
-                guidePage += 1;
-                break;
-            case 3:
                 setCookie("ShowGuide", "true", 1);
                 guidePage = 0;
                 GuideModalContainer.style.display = "none";

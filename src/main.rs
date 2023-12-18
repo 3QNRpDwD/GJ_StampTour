@@ -58,7 +58,7 @@ async fn index() -> impl Responder {
 }
 
 async fn handle_404() -> HttpResponse {
-    HttpResponse::NotFound().body(path("html", "Error.html").await.unwrap())
+    HttpResponse::NotFound().body(path("html", "error404.html").await.unwrap())
 }
 
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
@@ -102,7 +102,6 @@ async fn handle_stamp(req: HttpRequest, StampList: Data<StampList>) -> impl Resp
 }
 
 async fn handle_login(user_name: Json<UserName>) -> HttpResponse {
-    println!("{:?}", user_name.0);
     let user = user_registration(user_name.0);
     // user_list.users.append(user);
     HttpResponse::Ok().json(user.await)
@@ -156,7 +155,6 @@ async fn handle_html(req: HttpRequest) -> impl Responder {
     } else {
         file = req.match_info().query("file");
     }
-
     match path("html", file).await {
         Ok(result) => {
             if result.contains("File not found file error") {
@@ -198,7 +196,7 @@ async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
     File::open(path)
         .map_err(|e| {
             // println!("파일 {:?} 의 경로를 찾을수 없습니다.", path);
-            contents = "error".as_bytes().to_vec()
+            contents = "File not found file error".as_bytes().to_vec()
         })
         .and_then(|mut file| {
             // Use ? operator for early return in case of an error.

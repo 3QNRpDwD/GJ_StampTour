@@ -16,35 +16,6 @@ function init() {
         setLoginView();
     }
 }
-function enableMapZoom(mapElement) {
-    var cityMinZoom = 0.5;
-    if ('ontouchstart' in window || navigator.msMaxTouchPoints) {
-        zoom = panzoom(mapElement, {
-            bounds: true,
-            boundsPadding: -0.5,
-            maxZoom: 5,
-            minZoom: cityMinZoom,
-            zoomDoubleClickSpeed: 1,
-            // svg 내부 버튼 처리. circle 바꾸면 될 듯.
-            onTouch: (e) => {
-                const targetElem = e.target;
-                if (targetElem.tagName === "g" || targetElem.tagName === "rect" || targetElem.tagName === "text") {
-                    return false;
-                } else {
-                    e.preventDefault();
-                }
-            }
-        });
-    } else {
-        zoom = panzoom(mapElement, {
-            bounds: true,
-            boundsPadding: -0.5,
-            maxZoom: 5,
-            minZoom: cityMinZoom,
-            zoomDoubleClickSpeed: 1,
-        });
-    }
-}
 function getStampList() {
     getJSON(`/api/stampList.json`, function (err, data) {
         if (err != null) {
@@ -59,7 +30,7 @@ function getStampList() {
                 let stampElement = document.createElement("div");
                 stampElement.classList.add("stamp");
                 stampElement.id = stampData.stampId;
-                stampElement.innerHTML = `<img src="/images/check.svg"><h3 style="font-size: 0.9em">${stampData.stampName}</h3>`;
+                stampElement.innerHTML = `<img src="/images/circle.svg"><img class="CheckMark" src="/images/check.svg"><span><h2>${stampData.stampName}</h2><p>${stampData.stampLocation}</p></span>`;
                 eById("stampList").appendChild(stampElement);
             }
         }
