@@ -67,7 +67,7 @@ async fn handle_req(req: HttpRequest) -> impl Responder {
 
     match path(&*folder, req.match_info().query("file")).await {
         Ok(result) => {
-            if result.contains("error") {
+            if result.contains("File not found file error") {
                 handle_404().await
             } else {
                 HttpResponse::Ok().body(result)
@@ -159,7 +159,7 @@ async fn handle_html(req: HttpRequest) -> impl Responder {
 
     match path("html", file).await {
         Ok(result) => {
-            if result.contains("error") {
+            if result.contains("File not found file error") {
                 handle_404().await
             } else {
                 HttpResponse::Ok().body(result)
@@ -251,7 +251,7 @@ async fn main() -> std::io::Result<()> {
     info!(
         "{}",
         format!(
-            "Rust {protocol} Actix-web server started at {protocol}://{address}:{port}",
+            "[ version ]: 0.0.6 | Rust {protocol} Actix-web server started at {protocol}://{address}:{port}",
             protocol = address_info.protocol,
             address = address_info.address,
             port = address_info.port
