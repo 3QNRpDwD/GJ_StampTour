@@ -64,9 +64,16 @@ async fn handle_404() -> HttpResponse {
 #[get("/{folder}/{file}")] // 동적 페이지 요청 처리
 async fn handle_req(req: HttpRequest) -> impl Responder {
     let folder = req.match_info().get("folder").unwrap();
+
     match path(&*folder, req.match_info().query("file")).await {
-        Ok(result) => HttpResponse::Ok().body(result),
-        Err(e) => HttpResponse::Ok().body(e),
+        Ok(result) => {
+            if result.contains("error") {
+                handle_404().await
+            } else {
+                HttpResponse::Ok().body(result)
+            }
+        }
+        Err(error) => HttpResponse::Ok().body(error),
     }
 }
 
@@ -152,7 +159,7 @@ async fn handle_html(req: HttpRequest) -> impl Responder {
 
     match path("html", file).await {
         Ok(result) => {
-            if result.contains("(os error 2)") {
+            if result.contains("error") {
                 handle_404().await
             } else {
                 HttpResponse::Ok().body(result)
@@ -191,7 +198,7 @@ async fn read_file(path: &Path) -> Result<String, Vec<u8>> {
     File::open(path)
         .map_err(|e| {
             // println!("파일 {:?} 의 경로를 찾을수 없습니다.", path);
-            contents.extend_from_slice(&e.to_string().as_bytes())
+            contents = "error".as_bytes().to_vec()
         })
         .and_then(|mut file| {
             // Use ? operator for early return in case of an error.
