@@ -1,22 +1,49 @@
-use actix_rt;
 use actix_web::{
-    get, web::post, web::resource, web::route, web::Data, web::Json, web::Redirect, App,
-    HttpRequest, HttpResponse, HttpServer, Responder,
+    cookie::Cookie,
+    middleware::Logger,
+    web::{get, post, resource, route, Data, Json},
+    App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use chrono;
-use log::{info, warn, error};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use serde_with::serde_as;
 use std::{
-    collections::BTreeMap, collections::HashMap, collections::HashSet, env, fs::File, io::Read,
-    path::Path, sync::Mutex
+    collections::{BTreeMap, HashMap, HashSet},
+    env,
+    fs::File,
+    io::Read,
+    path::Path,
+    sync::Mutex,
 };
 use std::panic::panic_any;
-use svg;
+use actix_web::web::Redirect;
+use image::Luma;
+use qrcode::QrCode;
 use uuid::Uuid;
 
-#[serde_as]
+use std::str::FromStr;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref NAMESPACE_UUID: Uuid =
+        Uuid::from_str("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+            .expect("Failed to parse NAMESPACE_UUID");
+}
+
+#[derive(Serialize)]
+struct QrCodePayload {
+    student_id: String,
+    timestamp: i64,
+}
+
+#[derive(Deserialize, Debug)]
+struct KioskStampRequest {
+    student_id: String,
+    timestamp: i64,
+    stamp_id: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Hash)]
 struct Stamp {
     stampId: String,
@@ -25,7 +52,6 @@ struct Stamp {
     stampDesc: String,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct StampList {
     stampList: HashSet<Stamp>,
@@ -37,15 +63,18 @@ struct StampIdList {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct UserName {
+struct LoginRequest {
+    student_number: String,
     user_name: String,
+    password: String,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 struct User {
+    student_id: String,
     user_name: String,
-    user_id: String,
+    password_hash: String,
+    user_agent: String,
 }
 
 #[derive(Clone)]
@@ -55,10 +84,9 @@ struct AddressInfo {
     protocol: String,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct UserList {
-    users: BTreeMap<String, String>,
+    users: BTreeMap<String, User>,
 }
 
 #[derive(Debug, Clone)]
@@ -66,25 +94,52 @@ struct UserStampList {
     user_stamp_list: HashMap<String, String>,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct StampHistory {
     stamp_history: HashMap<String, Vec<StampUserInfo>>,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 struct StampUserInfo {
+    student_id: String,
     user_name: String,
-    user_id: String,
     timestamp: String,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Command {
     command: String,
     output: String,
+}
+
+#[derive(Serialize)]
+struct LoginResponse {
+    student_id: String,
+    user_name: String,
+}
+
+use actix_web::http::header; // 헤더 처리를 위해 추가
+
+// 로깅 컨텍스트를 돕기 위한 헬퍼 함수
+fn get_client_ip(req: &HttpRequest) -> String {
+    req.peer_addr().map_or_else(|| "unknown".to_string(), |a| a.ip().to_string())
+}
+
+fn get_user_agent(req: &HttpRequest) -> String {
+    req.headers()
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+// User Agent가 기존 로그인 정보와 일치하는지 확인하고 로그용 태그 반환
+fn check_ua_consistency(current_ua: &str, stored_ua: &str) -> String {
+    if current_ua == stored_ua {
+        "MATCH".to_string()
+    } else {
+        format!("MISMATCH(Reg: {}...)", &stored_ua.chars().take(20).collect::<String>())
+    }
 }
 
 /// 메인 폼 요청을 처리하는 비동기 함수입니다. 'index.html' 파일을 읽어와서
@@ -112,7 +167,6 @@ struct Command {
 ///     .unwrap();
 /// }
 /// ```
-#[get("/")]
 async fn index() -> impl Responder {
     // path 함수를 사용하여 'index.html' 파일 읽기 시도
     match path("html", "index.html").await {
@@ -214,23 +268,25 @@ async fn handle_401() -> HttpResponse {
 ///     .unwrap();
 /// }
 /// ```
-#[get("/{folder}/{file}")]
 async fn handle_req(req: HttpRequest) -> impl Responder {
-    // 요청된 폴더 및 파일명을 추출
     let folder = req.match_info().get("folder").unwrap();
+    let file_name = req.match_info().query("file");
+    let ip = get_client_ip(&req);
 
-    // path 함수를 사용하여 파일 읽기 시도
-    match path(&*folder, req.match_info().query("file")).await {
+    // [변경] 파일 요청은 DEBUG 레벨로 기록하여 평소에는 숨김
+    log::debug!("[File Request] [IP: {}] {}/{}", ip, folder, file_name);
+
+    match path(&*folder, file_name).await {
         Ok(result) => {
-            // 파일이 존재하지 않는 경우 404 Not Found 응답 반환
             if result.contains("File not found file error") {
+                // 파일이 없을 때만 Warn/Error 레벨 유지
+                warn!("[File Not Found] [IP: {}] {}/{}", ip, folder, file_name);
                 handle_404().await
             } else {
-                // 파일이 텍스트 파일일일경우 200 OK 응답과 파일 내용 반환
                 HttpResponse::Ok().body(result)
             }
         }
-        Err(error) => HttpResponse::Ok().body(error), // 바이너리 파일일시 200 OK 응답과 바이너리 파일 전송
+        Err(error) => HttpResponse::Ok().body(error),
     }
 }
 
@@ -266,7 +322,6 @@ async fn handle_req(req: HttpRequest) -> impl Responder {
 ///     .unwrap();
 /// }
 /// ```
-#[get("/check")]
 async fn handle_check(
     req: HttpRequest,
     user_list: Data<Mutex<UserList>>,
@@ -274,38 +329,43 @@ async fn handle_check(
     user_stamp_list: Data<Mutex<UserStampList>>,
 ) -> impl Responder {
     // 유저의 쿠키 확인
-    let cookie = req.cookie("user_id");
+    let ip = get_client_ip(&req);
+    let cookie = req.cookie("student_id");
 
     // 쿠키가 없을 경우 임시 리다이렉션 반환
     if cookie.is_none() {
-        warn!("A user who is not logged in attempted to access with a stamp.",);
+        warn!("⚠️ [ACCESS_DENIED] [IP:{}] Unauthenticated access attempt to stamp.", ip);
         return Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary();
     }
 
     // 쿠키가 있을 경우 쿠키 값을 가져옴
-    let user_id = cookie.unwrap().value().to_string();
-    let user_list = user_list.lock().unwrap().users.clone();
+    let student_id = cookie.unwrap().value().to_string();
+    let users_guard = user_list.lock().unwrap(); // Lock 범위 최소화 권장
 
-    // 등록된 사용자가 아닌 경우 임시 리다이렉션 반환
-    if !user_list.contains_key(&user_id) {
-        warn!("A cookie-modulated user attempted to access the stamp.",);
+    // 유저 확인
+    if !users_guard.users.contains_key(&student_id) {
+        warn!("🚨 [FORGED_COOKIE] [UID:{}] [IP:{}] Invalid cookie detected.", student_id, ip);
         return Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary();
     }
 
-    // URL에서 스템프 ID 추출
-    let stamp_id = req
-        .query_string()
-        .split("s=")
-        .nth(1)
-        .unwrap_or_default()
-        .to_string();
+    // UA 검증 (보안 로그)
+    let user = users_guard.users.get(&student_id).unwrap();
+    let current_ua = get_user_agent(&req);
+    let ua_check = check_ua_consistency(&current_ua, &user.user_agent);
+
+    // UA가 다르면 경고, 같으면 디버그 수준 (너무 시끄러울 수 있으므로)
+    if ua_check.starts_with("MISMATCH") {
+        warn!("🕵️ [SUSPICIOUS_UA] [UID:{}] [IP:{}] [UA_Status:{}] User Agent changed since login.", student_id, ip, ua_check);
+    }
+
+    let stamp_id = req.query_string().split("s=").nth(1).unwrap_or_default().to_string();
 
     // 유효한 스템프 ID인 경우 유저의 스템프 정보 갱신
     if stamp_id_list.stamp_id_list.contains_key(&stamp_id) {
         // 로그 출력: 유저 ID 및 스템프 ID 정보 출력
         info!(
-            "{}",
-            format!("User {} requests stamp {}.", user_id, stamp_id)
+            "👀 [STAMP_VIEW] [UID:{}] [Name:{}] [StampID:{}] [IP:{}] User viewing stamp page.",
+            student_id, user.user_name, stamp_id, ip
         );
 
         // Mutex를 사용하여 유저의 스템프 정보 갱신
@@ -313,7 +373,7 @@ async fn handle_check(
             let mut user_stamp_list = user_stamp_list.lock().unwrap();
             user_stamp_list
                 .user_stamp_list
-                .insert(user_id.clone(), stamp_id.clone());
+                .insert(student_id.clone(), stamp_id.clone());
             // user_stamp_list는 여기서 더 이상 사용되지 않으므로 이 지점에서 뮤텍스 해제
         }
     }
@@ -352,81 +412,170 @@ async fn handle_check(
 ///     .unwrap();
 /// }
 /// ```
-#[get("/stamp/")]
 async fn handle_stamp(
     req: HttpRequest,
+    user_list: Data<Mutex<UserList>>,
     user_stamp_list: Data<Mutex<UserStampList>>,
     user_history: Data<Mutex<StampHistory>>,
-    user_list: Data<Mutex<UserList>>,
 ) -> impl Responder {
+    let ip = get_client_ip(&req);
     // 유저의 쿠키 확인
-    let cookie = match req.cookie("user_id") {
+    let cookie = match req.cookie("student_id") {
         Some(cookie) => cookie,
         None => {
-            warn!("Unauthorized access to the stamp has been detected.");
+            warn!("⚠️ [STAMP_FAIL] [IP:{}] No cookie presented for stamping.", ip);
             return handle_401().await; // 쿠키가 없을 경우 401 Unauthorized 응답 전송
         }
     };
-    let user_id = cookie.value();
+    let student_id = cookie.value();
 
     // 유저의 스템프 정보를 복사
     let su_list = user_stamp_list.lock().unwrap().user_stamp_list.clone();
 
     // 유저의 스템프 정보를 확인하고 찾은 경우 갱신 및 형식화된 HTML 반환
-    if !su_list.contains_key(user_id) {
-        warn!(
-            "{}",
-            format!(
-                "User {} attempted an unacceptable access to the stamp.",
-                user_id
-            )
-        );
-        return handle_401().await; // 쿠키가 없을 경우 401 Unauthorized 응답 전송
+    if !su_list.contains_key(student_id) {
+        warn!("🚫 [STAMP_REJECT] [UID:{}] [IP:{}] User attempted unauthorized stamp access (flow error).", student_id, ip);
+        return handle_401().await;
     }
 
-    user_stamp_list
-        .lock()
-        .unwrap()
-        .user_stamp_list
-        .remove(user_id);
-
-    let stamp_id = su_list.get(user_id).unwrap();
-    let user_list = user_list.lock().unwrap().users.clone();
+    user_stamp_list.lock().unwrap().user_stamp_list.remove(student_id);
+    let stamp_id = su_list.get(student_id).unwrap();
     let timestamp = chrono::prelude::Utc::now().to_string();
-    user_history
-        .lock()
-        .unwrap()
-        .stamp_history
-        .get_mut(stamp_id).unwrap()
-        .extend(vec![StampUserInfo {
-            user_id: user_id.to_string(),
-            user_name: user_list.get(user_id).unwrap().to_string(),
-            timestamp,
-        }]);
+    let users = user_list.lock().unwrap();
 
+    // 유저 정보 가져오기 (로그용)
+    let (user_name, stored_ua) = users.users.get(student_id)
+        .map_or(("Unknown".to_string(), "".to_string()), |u| (u.user_name.clone(), u.user_agent.clone()));
 
-    // 로그 출력: 스템프 찍기 완료 메시지
+    // UA 재확인
+    let current_ua = get_user_agent(&req);
+    let ua_status = check_ua_consistency(&current_ua, &stored_ua);
+
+    // ... (히스토리 저장 로직)
+    user_history.lock().unwrap().stamp_history.get_mut(stamp_id).unwrap().extend(vec![StampUserInfo {
+        student_id: student_id.to_string(),
+        user_name: user_name.clone(),
+        timestamp,
+    }]);
+
+    // [변경] 스탬프 완료 로그 (성공 여부 명확히)
     info!(
-        "{}",
-        format!(
-            "The stamp {} request for user {} has been completed.",
-            stamp_id, user_id
-        )
+        "✅ [STAMP_COMPLETE] [UID:{}] [Name:{}] [StampID:{}] [IP:{}] [UA:{}] Stamp process finished.",
+        student_id, user_name, stamp_id, ip, ua_status
     );
 
-    // 스템프 ID가 비어있지 않은 경우 200 OK 응답과 형식화된 HTML 반환
-    if stamp_id != "" {
+    if !stamp_id.is_empty() {
         return HttpResponse::Ok()
             .insert_header(("Cache-Control", "no-cache"))
             .body(format_file(&*stamp_id.to_string()).await);
     }
 
-    // 스템프를 찾지 못한 경우 404 Not Found 응답 반환
-    warn!(
-        "{}",
-        format!("User {} sent an invalid stamp request.", user_id)
-    );
+    warn!("❓ [STAMP_INVALID] [UID:{}] Invalid stamp ID processing.", student_id);
     handle_404().await
+}
+
+async fn handle_generate_qrcode(req: HttpRequest) -> impl Responder {
+    // 1. 사용자 인증 (쿠키에서 student_id 가져오기)
+    let student_id = match req.cookie("student_id") {
+        Some(cookie) => cookie.value().to_string(),
+        None => {
+            warn!("QR Code generation failed: User not authenticated.");
+            return HttpResponse::Unauthorized().finish();
+        }
+    };
+
+    // 2. QR 코드에 담을 데이터 생성
+    let payload = QrCodePayload {
+        student_id: student_id.clone(),
+        timestamp: chrono::Utc::now().timestamp(),
+    };
+
+    // 3. 데이터를 JSON 문자열로 직렬화
+    let json_payload = match serde_json::to_string(&payload) {
+        Ok(json) => json,
+        Err(e) => {
+            error!("Failed to serialize QR code payload: {}", e);
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    // 4. QR 코드 생성
+    let code = match QrCode::new(json_payload.as_bytes()) {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Failed to create QR code: {}", e);
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    // 5. 이미지로 렌더링
+    let image = code.render::<Luma<u8>>().build();
+
+    // 6. 이미지를 PNG 형식의 바이트 버퍼로 인코딩
+    let mut buffer = Vec::new();
+    if image
+        .write_to(
+            &mut std::io::Cursor::new(&mut buffer),
+            image::ImageFormat::Png,
+        )
+        .is_err()
+    {
+        error!("Failed to encode QR code to PNG");
+        return HttpResponse::InternalServerError().finish();
+    }
+
+    info!("Generated QR code for student_id: {}", student_id);
+    // 7. PNG 이미지 응답
+    HttpResponse::Ok()
+        .content_type("image/png")
+        .body(buffer)
+}
+
+async fn handle_issue_stamp(
+    payload: Json<KioskStampRequest>,
+    user_list: Data<Mutex<UserList>>,
+    stamp_id_list: Data<StampIdList>,
+    user_history: Data<Mutex<StampHistory>>,
+) -> impl Responder {
+    const QR_CODE_VALIDITY_SECONDS: i64 = 30;
+
+    // 1. 타임스탬프 유효성 검사
+    let current_timestamp = chrono::Utc::now().timestamp();
+    if current_timestamp - payload.timestamp > QR_CODE_VALIDITY_SECONDS {
+        warn!("Expired QR code used for stamp_id: {}, student_id: {}", payload.stamp_id, payload.student_id);
+        return HttpResponse::BadRequest().body("QR code has expired.");
+    }
+
+    // 2. 사용자 및 스탬프 유효성 검사
+    let users = user_list.lock().unwrap();
+    let user = match users.users.get(&payload.student_id) {
+        Some(u) => u,
+        None => {
+            warn!("Invalid student_id '{}' from QR code.", payload.student_id);
+            return HttpResponse::BadRequest().body("Invalid user.");
+        }
+    };
+
+    if !stamp_id_list.stamp_id_list.contains_key(&payload.stamp_id) {
+        warn!("Invalid stamp_id '{}' from kiosk.", payload.stamp_id);
+        return HttpResponse::BadRequest().body("Invalid stamp.");
+    }
+
+    // 3. 스탬프 발급
+    let mut history = user_history.lock().unwrap();
+    let stamp_log = history.stamp_history.entry(payload.stamp_id.clone()).or_insert_with(Vec::new);
+
+    let user_info = StampUserInfo {
+        student_id: user.student_id.clone(),
+        user_name: user.user_name.clone(),
+        timestamp: chrono::Utc::now().to_string(),
+    };
+    
+    stamp_log.push(user_info);
+
+    info!("Issued stamp '{}' to student_id '{}'", payload.stamp_id, payload.student_id);
+
+    HttpResponse::Ok().json("Stamp issued successfully.")
 }
 
 async fn handle_admin(
@@ -488,80 +637,76 @@ fn save_file<T: serde::Serialize>(file_name: &str, data: T) -> Result<bool, bool
     }
 }
 
-/// 로그인 요청을 처리하는 비동기 함수입니다. 주어진 사용자 이름을 사용하여 새로운 사용자를 등록하고,
-/// 등록된 사용자 정보를 유저 리스트에 추가한 후, 성공 응답을 반환합니다.
-///
-/// # Arguments
-///
-/// * `name` - JSON 형식으로 전달된 사용자 이름을 나타내는 `Json<UserName>` 객체입니다.
-/// * `user_list` - 사용자 정보를 관리하는 `UserList`에 대한 `Data<Mutex<UserList>>`입니다.
-///
-/// # Returns
-///
-/// 성공적으로 사용자를 등록하고 유저 리스트에 추가한 경우, 해당 사용자 정보를 담은 성공 응답(`HttpResponse::Ok()`)이 반환됩니다.
-///
-/// # Example
-///
-/// ```rust
-/// #[actix_web::main]
-/// async fn main() {
-///     // Actix-web 앱 생성 및 라우터 등록
-///     let app = App::new().service(resource("/login").route(post().to(handle_login)));
-///     // HTTP 서버 생성 및 실행
-///     HttpServer::new(|| {
-///         app.clone()
-///     })
-///     .bind("127.0.0.1:8080").unwrap()
-///     .run()
-///     .await
-///     .unwrap();
-/// }
-/// ```
 async fn handle_login(
-    name: Json<UserName>,
+    req: HttpRequest,
+    payload: Json<LoginRequest>,
     user_list: Data<Mutex<UserList>>,
-    user_stamp_record: Data<Mutex<StampHistory>>,
 ) -> HttpResponse {
-    // 주어진 사용자 이름으로 새로운 사용자 등록
-    let user = user_registration(name.0);
+    let mut users = user_list.lock().unwrap();
+    let ip = get_client_ip(&req);
+    let current_ua = get_user_agent(&req);
+    let combined_string = format!(
+        "{}:{}:{}",
+        payload.student_number, payload.user_name, payload.password
+    );
+    let student_id = Uuid::new_v5(&NAMESPACE_UUID, combined_string.as_bytes()).to_string();
 
-    // 로그 출력: 사용자 등록 메시지
-    info!("{}", format!("{:?} has started a stomp tour.", user));
+    match users.users.get(&student_id) {
+        // --- User Exists -> Login ---
+        Some(existing_user) => {
+            let ua_status = check_ua_consistency(&current_ua, &existing_user.user_agent);
 
-    // Mutex를 사용하여 유저 리스트에 등록된 사용자 추가
-    user_list
-        .lock()
-        .unwrap()
-        .users
-        .insert(user.user_id.to_string(), user.user_name.to_string());
-    // 성공 응답과 등록된 사용자 정보를 JSON 형태로 반환
-    HttpResponse::Ok().json(user)
-}
+            info!(
+                "🟢 [LOGIN_SUCCESS] [UID:{}] [Name:{}] [IP:{}] [UA:{}] User logged in.",
+                existing_user.student_id, existing_user.user_name, ip, ua_status
+            );
 
-/// 주어진 사용자 이름을 사용하여 새로운 사용자를 등록하는 함수입니다.
-///
-/// # Arguments
-///
-/// * `name` - 사용자 이름을 나타내는 `UserName` 구조체입니다.
-///
-/// # Returns
-///
-/// 등록된 사용자를 나타내는 `User` 구조체를 반환합니다. 사용자 ID는 무작위로 생성됩니다.
-///
-/// # Example
-///
-/// ```rust
-/// // 사용자 이름 생성
-/// let user_name = UserName { user_name: "JohnDoe".to_string() };
-/// // 사용자 등록
-/// let new_user = user_registration(user_name);
-/// println!("Registered User: {:?}", new_user);
-/// ```
-fn user_registration(name: UserName) -> User {
-    // 새로운 사용자 생성 및 사용자 ID는 무작위로 생성
-    User {
-        user_name: name.user_name,
-        user_id: Uuid::new_v4().to_string(),
+            let response_user = LoginResponse {
+                student_id: existing_user.student_id.clone(),
+                user_name: existing_user.user_name.clone(),
+            };
+            let cookie = Cookie::build("student_id", student_id.clone())
+                .path("/")
+                .finish();
+            HttpResponse::Ok().cookie(cookie).json(response_user)
+        }
+        // --- User Not Found -> Register ---
+        None => {
+            let user_name = payload.user_name.clone();
+            info!(
+                "🆕 [REGISTER_NEW] [UID (Gen):{}] [Name:{}] [IP:{}] [UA:New] New user registration.",
+                student_id, payload.user_name, ip
+            );
+
+            // ... (기존 비밀번호 해시 및 유저 생성 로직)
+            let password_hash = match bcrypt::hash(&payload.password, bcrypt::DEFAULT_COST) {
+                Ok(h) => h,
+                Err(e) => {
+                    error!("❌ [REGISTER_FAIL] [IP:{}] Error hashing password: {}", ip, e);
+                    return HttpResponse::InternalServerError().finish();
+                }
+            };
+
+            let new_user = User {
+                student_id: student_id.clone(),
+                user_name: payload.user_name.clone(),
+                password_hash,
+                user_agent: current_ua, // 등록 시 UA 저장
+            };
+
+            users.users.insert(student_id.clone(), new_user.clone());
+
+            let response_user = LoginResponse {
+                student_id: new_user.student_id,
+                user_name: new_user.user_name,
+            };
+
+            let cookie = Cookie::build("student_id", student_id.clone())
+                .path("/")
+                .finish();
+
+            HttpResponse::Ok().cookie(cookie).json(response_user)
+        }
     }
 }
 
@@ -722,8 +867,12 @@ async fn format_file(stamp_id: &str) -> String {
 ///     .unwrap();
 /// }
 /// ```
-#[get("/{file}")]
 async fn handle_html(req: HttpRequest) -> impl Responder {
+    let file_query = req.match_info().query("file");
+    let ip = get_client_ip(&req);
+
+    // [변경] HTML 요청도 DEBUG 레벨로 내림
+    debug!("[HTML Request] [IP: {}] {}", ip, file_query);
     // 요청된 파일 이름을 '.'을 기준으로 분리
     let split_str: Vec<&str> = req.match_info().query("file").split('.').collect();
 
@@ -745,7 +894,7 @@ async fn handle_html(req: HttpRequest) -> impl Responder {
         Ok(result) => {
             // 파일이 존재하지 않는 경우 404 응답 반환
             if result.contains("File not found") {
-                error!("{}", format!("File not found {}", file));
+                warn!("[HTML Not Found] [IP: {}] {}", ip, file); // 404는 경고
                 handle_404().await
             } else {
                 // 파일이 성공적으로 읽혔을 경우 200 OK 응답과 파일 내용 반환
@@ -955,19 +1104,31 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            // .wrap(Logger::default()) // 로거 시작
+            .wrap(
+                Logger::new(r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %Dms"#)
+                    .exclude("/favicon.ico") // 예시
+                    // 주의: /{folder}/{file} 같은 동적 라우트는 exclude로 잡기 어렵습니다.
+                    // 따라서 미들웨어는 '시스템 로그'용으로 두고,
+                    // 우리가 작성한 '비즈니스 로그(로그인, 스탬프)'를 중심으로 모니터링하는 것이 좋습니다.
+                    // 만약 파일 로그가 너무 많다면, 아래와 같이 exclude_regex를 시도할 수 있습니다.
+                    .exclude_regex(r"^/css/.*")
+                    .exclude_regex(r"^/js/.*")
+                    .exclude_regex(r"^/images/.*")
+            )
             .app_data(Data::new(stamp_list.clone())) // 전역변수 선언
             .app_data(Data::new(move_address.clone())) // 전역변수 선언
             .app_data(Data::clone(&user_list)) // 전역변수 선언
             .app_data(Data::clone(&user_stamp_list)) // 전역변수 선언
             .app_data(Data::clone(&user_history)) // 전역변수 선언
-            .service(index) // 인덱스 요청 처리
+            .route("/", get().to(index)) // 인덱스 요청 처리
             .service(resource("/login").route(post().to(handle_login))) // 로그인 요청 처리
             .service(resource("/admin").route(post().to(handle_admin)))
-            .service(handle_check) // 스템프 리다이렉션 처리
-            .service(handle_stamp) // 스템프 찍기 처리
-            .service(handle_html) // HTML 요청 처리
-            .service(handle_req) // 일반 파일 요청 처리
+            .route("/qrcode/generate", get().to(handle_generate_qrcode)) // QR 코드 생성
+            .route("/stamp/issue", post().to(handle_issue_stamp))     // QR 스탬프 발급
+            .route("/check", get().to(handle_check)) // 스템프 리다이렉션 처리
+            .route("/stamp/", get().to(handle_stamp)) // 스템프 찍기 처리
+            .route("/{file}", get().to(handle_html)) // HTML 요청 처리
+            .route("/{folder}/{file}", get().to(handle_req)) // 일반 파일 요청 처리
             .default_service(route().to(handle_404)) // 만약 위의 처리 항목 중 해당되는게 없으면 404 응답 전송
     })
     .bind((address.address.as_str(), address.port))? // 서버 바인딩
@@ -1010,8 +1171,8 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
 // 메인 함수
 #[actix_web::main]
 async fn main() {
-    // 로거 초기화
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    // log4rs 로거 초기화
+    log4rs::init_file("log4rs.yaml", Default::default()).expect("Failed to initialize logger");
     // 실행 인수 초기화
     let args: Vec<String> = env::args().collect();
     // 서버 바인딩 정보 초기화

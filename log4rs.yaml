@@ -1,0 +1,43 @@
+# log4rs.yaml
+# How often to check for configuration changes.
+refresh_rate: 30 seconds
+
+# Appenders are where the logs go.
+appenders:
+  # An appender that writes to the console.
+  console:
+    kind: console
+    encoder:
+      # A pattern for the log message.
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} [{h({l})}] - {m}{n}"
+
+  # A rolling file appender.
+  file:
+    kind: rolling_file
+    path: "logs/app.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}{n}"
+    policy:
+      kind: compound
+      trigger:
+        # Rotate the log file when it reaches 10MB.
+        kind: size
+        limit: 10 mb
+      roller:
+        # Keep 7 archives.
+        kind: fixed_window
+        base: 1
+        count: 7
+        pattern: "logs/app.{}.log.gz"
+
+# The root logger configuration.
+root:
+  level: info # 평소에는 debug 로그(파일 요청) 무시
+  appenders:
+    - stdout
+    - file
+
+loggers:
+  # Actix 자체의 로그도 보고 싶지 않다면 warn으로 올림
+  actix_web:
+    level: info
