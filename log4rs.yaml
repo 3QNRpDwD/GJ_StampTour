@@ -28,16 +28,16 @@ appenders:
         kind: fixed_window
         base: 1
         count: 7
-        pattern: "logs/app.{}.log.gz"
+        pattern: "logs/app.{}.log"
 
 # The root logger configuration.
 root:
   level: info # 평소에는 debug 로그(파일 요청) 무시
   appenders:
-    - stdout
+    - console
     - file
 
 loggers:
   # Actix 자체의 로그도 보고 싶지 않다면 warn으로 올림
   actix_web:
-    level: info
+    level: warn

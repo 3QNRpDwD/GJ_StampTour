@@ -18,8 +18,7 @@ use std::{
 };
 use std::panic::panic_any;
 use actix_web::web::Redirect;
-use image::Luma;
-use qrcode::QrCode;
+use rand::Rng;
 use uuid::Uuid;
 
 use std::str::FromStr;
@@ -32,15 +31,21 @@ lazy_static! {
 }
 
 #[derive(Serialize)]
-struct QrCodePayload {
+struct OtpResponse {
+    otp: String,
+}
+
+#[derive(Clone, Debug)]
+struct OtpAuth {
     student_id: String,
     timestamp: i64,
 }
 
+type OtpStore = HashMap<String, OtpAuth>;
+
 #[derive(Deserialize, Debug)]
 struct KioskStampRequest {
-    student_id: String,
-    timestamp: i64,
+    otp: String,
     stamp_id: String,
 }
 
@@ -64,8 +69,7 @@ struct StampIdList {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct LoginRequest {
-    student_number: String,
-    user_name: String,
+    user: String,
     password: String,
 }
 
@@ -114,7 +118,7 @@ struct Command {
 
 #[derive(Serialize)]
 struct LoginResponse {
-    student_id: String,
+    user_id: String,
     user_name: String,
 }
 
@@ -330,7 +334,7 @@ async fn handle_check(
 ) -> impl Responder {
     // 유저의 쿠키 확인
     let ip = get_client_ip(&req);
-    let cookie = req.cookie("student_id");
+    let cookie = req.cookie("user_id");
 
     // 쿠키가 없을 경우 임시 리다이렉션 반환
     if cookie.is_none() {
@@ -419,32 +423,38 @@ async fn handle_stamp(
     user_history: Data<Mutex<StampHistory>>,
 ) -> impl Responder {
     let ip = get_client_ip(&req);
-    // 유저의 쿠키 확인
-    let cookie = match req.cookie("student_id") {
-        Some(cookie) => cookie,
+    // 1. 사용자 인증 (쿠키에서 user_id 가져오기)
+    let student_id = match req.cookie("user_id") {
+        Some(cookie) => cookie.value().to_string(),
         None => {
             warn!("⚠️ [STAMP_FAIL] [IP:{}] No cookie presented for stamping.", ip);
-            return handle_401().await; // 쿠키가 없을 경우 401 Unauthorized 응답 전송
+            return handle_401().await;
         }
     };
-    let student_id = cookie.value();
+
+    // 2. 쿠키의 user_id가 실제 사용자인지 검증
+    let users = user_list.lock().unwrap();
+    if !users.users.contains_key(&student_id) {
+        warn!("🚫 [STAMP_REJECT] [UID:{}] [IP:{}] Invalid user_id in cookie.", student_id, ip);
+        return handle_401().await;
+    }
 
     // 유저의 스템프 정보를 복사
     let su_list = user_stamp_list.lock().unwrap().user_stamp_list.clone();
 
     // 유저의 스템프 정보를 확인하고 찾은 경우 갱신 및 형식화된 HTML 반환
-    if !su_list.contains_key(student_id) {
+    if !su_list.contains_key(&student_id) {
         warn!("🚫 [STAMP_REJECT] [UID:{}] [IP:{}] User attempted unauthorized stamp access (flow error).", student_id, ip);
         return handle_401().await;
     }
 
-    user_stamp_list.lock().unwrap().user_stamp_list.remove(student_id);
-    let stamp_id = su_list.get(student_id).unwrap();
+    let stamp_id = su_list.get(&student_id).unwrap().clone();
+    user_stamp_list.lock().unwrap().user_stamp_list.remove(&student_id);
+    
     let timestamp = chrono::prelude::Utc::now().to_string();
-    let users = user_list.lock().unwrap();
 
     // 유저 정보 가져오기 (로그용)
-    let (user_name, stored_ua) = users.users.get(student_id)
+    let (user_name, stored_ua) = users.users.get(&student_id)
         .map_or(("Unknown".to_string(), "".to_string()), |u| (u.user_name.clone(), u.user_agent.clone()));
 
     // UA 재확인
@@ -452,7 +462,7 @@ async fn handle_stamp(
     let ua_status = check_ua_consistency(&current_ua, &stored_ua);
 
     // ... (히스토리 저장 로직)
-    user_history.lock().unwrap().stamp_history.get_mut(stamp_id).unwrap().extend(vec![StampUserInfo {
+    user_history.lock().unwrap().stamp_history.get_mut(&stamp_id).unwrap().extend(vec![StampUserInfo {
         student_id: student_id.to_string(),
         user_name: user_name.clone(),
         timestamp,
@@ -467,68 +477,59 @@ async fn handle_stamp(
     if !stamp_id.is_empty() {
         return HttpResponse::Ok()
             .insert_header(("Cache-Control", "no-cache"))
-            .body(format_file(&*stamp_id.to_string()).await);
+            .body(format_file(&stamp_id).await);
     }
 
     warn!("❓ [STAMP_INVALID] [UID:{}] Invalid stamp ID processing.", student_id);
     handle_404().await
 }
 
-async fn handle_generate_qrcode(req: HttpRequest) -> impl Responder {
-    // 1. 사용자 인증 (쿠키에서 student_id 가져오기)
-    let student_id = match req.cookie("student_id") {
+async fn handle_generate_otp(
+    req: HttpRequest,
+    otp_store: Data<Mutex<OtpStore>>,
+    user_list: Data<Mutex<UserList>>,
+) -> impl Responder {
+    // 1. 사용자 인증 (쿠키에서 user_id 가져오기)
+    let student_id = match req.cookie("user_id") {
         Some(cookie) => cookie.value().to_string(),
         None => {
-            warn!("QR Code generation failed: User not authenticated.");
+            warn!("OTP generation failed: User not authenticated (no cookie).");
             return HttpResponse::Unauthorized().finish();
         }
     };
 
-    // 2. QR 코드에 담을 데이터 생성
-    let payload = QrCodePayload {
+    // 2. 쿠키의 user_id가 실제 사용자인지 검증
+    let users = user_list.lock().unwrap();
+    if !users.users.contains_key(&student_id) {
+        warn!(
+            "OTP generation failed: Invalid user_id '{}' in cookie.",
+            student_id
+        );
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    // 3. 6자리 랜덤 OTP 생성
+    let mut rng = rand::thread_rng();
+    let otp = format!("{:06}", rng.gen_range(0..1_000_000));
+
+    // 4. OTP 데이터 생성 및 저장
+    let otp_auth = OtpAuth {
         student_id: student_id.clone(),
         timestamp: chrono::Utc::now().timestamp(),
     };
 
-    // 3. 데이터를 JSON 문자열로 직렬화
-    let json_payload = match serde_json::to_string(&payload) {
-        Ok(json) => json,
-        Err(e) => {
-            error!("Failed to serialize QR code payload: {}", e);
-            return HttpResponse::InternalServerError().finish();
-        }
-    };
+    let mut store = otp_store.lock().unwrap();
+    store.insert(otp.clone(), otp_auth);
 
-    // 4. QR 코드 생성
-    let code = match QrCode::new(json_payload.as_bytes()) {
-        Ok(c) => c,
-        Err(e) => {
-            error!("Failed to create QR code: {}", e);
-            return HttpResponse::InternalServerError().finish();
-        }
-    };
+    info!("Generated OTP {} for student_id: {}, {:?}", otp, student_id, store);
 
-    // 5. 이미지로 렌더링
-    let image = code.render::<Luma<u8>>().build();
+    // 5. OTP를 JSON으로 응답
+    HttpResponse::Ok().json(OtpResponse { otp })
+}
 
-    // 6. 이미지를 PNG 형식의 바이트 버퍼로 인코딩
-    let mut buffer = Vec::new();
-    if image
-        .write_to(
-            &mut std::io::Cursor::new(&mut buffer),
-            image::ImageFormat::Png,
-        )
-        .is_err()
-    {
-        error!("Failed to encode QR code to PNG");
-        return HttpResponse::InternalServerError().finish();
-    }
-
-    info!("Generated QR code for student_id: {}", student_id);
-    // 7. PNG 이미지 응답
-    HttpResponse::Ok()
-        .content_type("image/png")
-        .body(buffer)
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct SUC {
+    status: String
 }
 
 async fn handle_issue_stamp(
@@ -536,22 +537,34 @@ async fn handle_issue_stamp(
     user_list: Data<Mutex<UserList>>,
     stamp_id_list: Data<StampIdList>,
     user_history: Data<Mutex<StampHistory>>,
+    otp_store: Data<Mutex<OtpStore>>,
 ) -> impl Responder {
-    const QR_CODE_VALIDITY_SECONDS: i64 = 30;
+    const OTP_VALIDITY_SECONDS: i64 = 60;
 
-    // 1. 타임스탬프 유효성 검사
+    // 1. OTP 조회 및 제거
+    let mut store = otp_store.lock().unwrap();
+    let otp_auth = match store.remove(&payload.otp) {
+        Some(auth) => auth,
+        None => {
+            warn!("Invalid OTP '{}' used.", payload.otp);
+            return HttpResponse::BadRequest().body("Invalid or already used OTP.");
+        }
+    };
+
+    // 2. 타임스탬프 유효성 검사
     let current_timestamp = chrono::Utc::now().timestamp();
-    if current_timestamp - payload.timestamp > QR_CODE_VALIDITY_SECONDS {
-        warn!("Expired QR code used for stamp_id: {}, student_id: {}", payload.stamp_id, payload.student_id);
-        return HttpResponse::BadRequest().body("QR code has expired.");
+    if current_timestamp - otp_auth.timestamp > OTP_VALIDITY_SECONDS {
+        warn!("Expired OTP '{}' used for student_id: {}", payload.otp, otp_auth.student_id);
+        return HttpResponse::BadRequest().body("OTP has expired.");
     }
 
-    // 2. 사용자 및 스탬프 유효성 검사
+    // 3. 사용자 및 스탬프 유효성 검사
     let users = user_list.lock().unwrap();
-    let user = match users.users.get(&payload.student_id) {
+    let user = match users.users.get(&otp_auth.student_id) {
         Some(u) => u,
         None => {
-            warn!("Invalid student_id '{}' from QR code.", payload.student_id);
+            // 이 경우는 OTP가 발급되었으나 그 사이 유저가 삭제된 극히 드문 케이스
+            warn!("Invalid student_id '{}' from valid OTP '{}'.", otp_auth.student_id, payload.otp);
             return HttpResponse::BadRequest().body("Invalid user.");
         }
     };
@@ -561,7 +574,7 @@ async fn handle_issue_stamp(
         return HttpResponse::BadRequest().body("Invalid stamp.");
     }
 
-    // 3. 스탬프 발급
+    // 4. 스탬프 발급
     let mut history = user_history.lock().unwrap();
     let stamp_log = history.stamp_history.entry(payload.stamp_id.clone()).or_insert_with(Vec::new);
 
@@ -570,12 +583,12 @@ async fn handle_issue_stamp(
         user_name: user.user_name.clone(),
         timestamp: chrono::Utc::now().to_string(),
     };
-    
+
     stamp_log.push(user_info);
 
-    info!("Issued stamp '{}' to student_id '{}'", payload.stamp_id, payload.student_id);
+    info!("Issued stamp '{}' to student_id '{}' via OTP", payload.stamp_id, user.student_id);
 
-    HttpResponse::Ok().json("Stamp issued successfully.")
+    HttpResponse::Ok().json(SUC {status:String::from("success")})
 }
 
 async fn handle_admin(
@@ -646,8 +659,8 @@ async fn handle_login(
     let ip = get_client_ip(&req);
     let current_ua = get_user_agent(&req);
     let combined_string = format!(
-        "{}:{}:{}",
-        payload.student_number, payload.user_name, payload.password
+        "{}:{}",
+        payload.user, payload.password
     );
     let student_id = Uuid::new_v5(&NAMESPACE_UUID, combined_string.as_bytes()).to_string();
 
@@ -662,20 +675,23 @@ async fn handle_login(
             );
 
             let response_user = LoginResponse {
-                student_id: existing_user.student_id.clone(),
+                user_id: existing_user.student_id.clone(),
                 user_name: existing_user.user_name.clone(),
             };
-            let cookie = Cookie::build("student_id", student_id.clone())
+            let cookie_user_name = Cookie::build("user_name", existing_user.user_name.clone())
                 .path("/")
                 .finish();
-            HttpResponse::Ok().cookie(cookie).json(response_user)
+            let cookie_user_id = Cookie::build("user_id", existing_user.student_id.clone())
+                .path("/")
+                .finish();
+
+            HttpResponse::Ok().cookie(cookie_user_name).cookie(cookie_user_id).json(response_user)
         }
         // --- User Not Found -> Register ---
         None => {
-            let user_name = payload.user_name.clone();
             info!(
                 "🆕 [REGISTER_NEW] [UID (Gen):{}] [Name:{}] [IP:{}] [UA:New] New user registration.",
-                student_id, payload.user_name, ip
+                student_id, payload.user, ip
             );
 
             // ... (기존 비밀번호 해시 및 유저 생성 로직)
@@ -689,7 +705,7 @@ async fn handle_login(
 
             let new_user = User {
                 student_id: student_id.clone(),
-                user_name: payload.user_name.clone(),
+                user_name: payload.user.clone(),
                 password_hash,
                 user_agent: current_ua, // 등록 시 UA 저장
             };
@@ -697,15 +713,20 @@ async fn handle_login(
             users.users.insert(student_id.clone(), new_user.clone());
 
             let response_user = LoginResponse {
-                student_id: new_user.student_id,
+                user_id: new_user.student_id,
                 user_name: new_user.user_name,
             };
 
-            let cookie = Cookie::build("student_id", student_id.clone())
+            let cookie_user_name = Cookie::build("user_name", response_user.user_name.clone())
+                .path("/")
+                .finish();
+            let cookie_user_id = Cookie::build("user_id", student_id.clone())
                 .path("/")
                 .finish();
 
-            HttpResponse::Ok().cookie(cookie).json(response_user)
+            info!("🆕 [COOKIE] user_name: {}, user_id: {}", cookie_user_name.to_string(), cookie_user_id.to_string());
+
+            HttpResponse::Ok().cookie(cookie_user_name).cookie(cookie_user_id).json(response_user)
         }
     }
 }
@@ -1102,6 +1123,9 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
     let user_history: Data<Mutex<StampHistory>> =
         Data::new(Mutex::new(stamp_history_db(stamp_list.clone())));
 
+    // OTP 저장소 초기화
+    let otp_store: Data<Mutex<OtpStore>> = Data::new(Mutex::new(OtpStore::new()));
+
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -1112,21 +1136,27 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
                     // 우리가 작성한 '비즈니스 로그(로그인, 스탬프)'를 중심으로 모니터링하는 것이 좋습니다.
                     // 만약 파일 로그가 너무 많다면, 아래와 같이 exclude_regex를 시도할 수 있습니다.
                     .exclude_regex(r"^/css/.*")
-                    .exclude_regex(r"^/js/.*")
+                    .exclude_regex(r"^/scripts/.*")
+                    .exclude_regex(r"^/fonts/.*")
                     .exclude_regex(r"^/images/.*")
+                    .exclude_regex(r"^/map/.*")
+                    .exclude_regex(r"^/sounds/.*")
+                    .exclude_regex(r"^/videos/.*")
+                    .exclude_regex(r"^/api/.*")
             )
             .app_data(Data::new(stamp_list.clone())) // 전역변수 선언
             .app_data(Data::new(move_address.clone())) // 전역변수 선언
             .app_data(Data::clone(&user_list)) // 전역변수 선언
             .app_data(Data::clone(&user_stamp_list)) // 전역변수 선언
             .app_data(Data::clone(&user_history)) // 전역변수 선언
+            .app_data(Data::clone(&otp_store)) // OTP 저장소 전역 변수 선언
             .route("/", get().to(index)) // 인덱스 요청 처리
             .service(resource("/login").route(post().to(handle_login))) // 로그인 요청 처리
             .service(resource("/admin").route(post().to(handle_admin)))
-            .route("/qrcode/generate", get().to(handle_generate_qrcode)) // QR 코드 생성
+            .route("/otp/generate", get().to(handle_generate_otp)) // OTP 생성
             .route("/stamp/issue", post().to(handle_issue_stamp))     // QR 스탬프 발급
             .route("/check", get().to(handle_check)) // 스템프 리다이렉션 처리
-            .route("/stamp/", get().to(handle_stamp)) // 스템프 찍기 처리
+            .route("/stamp", get().to(handle_stamp)) // 스템프 찍기 처리
             .route("/{file}", get().to(handle_html)) // HTML 요청 처리
             .route("/{folder}/{file}", get().to(handle_req)) // 일반 파일 요청 처리
             .default_service(route().to(handle_404)) // 만약 위의 처리 항목 중 해당되는게 없으면 404 응답 전송
