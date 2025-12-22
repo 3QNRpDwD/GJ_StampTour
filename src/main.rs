@@ -662,7 +662,7 @@ async fn handle_issue_stamp(
     let otp_auth = match store.remove(&payload.otp) {
         Some(auth) => {
             // OTP가 유효하면, 이제 사용자 ID를 알 수 있으므로 로거 컨텍스트를 업데이트합니다.
-            log.user_name = format!("stamp:{}|user:{}", &payload.stamp_name, &auth.student_id.chars().take(6).collect());
+            log.user_name = format!("stamp:{}|user:{}", &payload.stamp_name, &auth.student_id[0..8]);
             log.info("OTP found and consumed.");
             auth
         },
