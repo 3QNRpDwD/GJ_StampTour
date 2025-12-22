@@ -346,7 +346,7 @@ async fn handle_check(
     let ip = get_client_ip(&req);
     let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
 
-    let mut log = LogFlow::new(&student_id[0..5], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..8], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Check request from IP: {}", ip));
     log.enter();
 
@@ -493,7 +493,7 @@ async fn handle_stamp(
     );
 
     // 2. LogFlow 생성 (여기서 요청 ID가 발급됨)
-    let mut log = LogFlow::new(&student_id[0..5], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..8], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Stamp request initiated from IP: {}", ip));
 
     // 3. 사용자 인증
@@ -574,7 +574,7 @@ async fn handle_generate_otp(
 ) -> impl Responder {
     let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
     let ip = get_client_ip(&req);
-    let mut log = LogFlow::new(&student_id[0..5], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("OTP generation request from IP: {}", ip));
     log.enter();
 
@@ -607,7 +607,7 @@ async fn handle_generate_otp(
     let otp = format!("{:06}", rng.gen_range(0..1_000_000));
     log.info(&format!("Generated new OTP: {}", otp));
 
-    // 5. OTP 데이터 생성 및 저장
+    // 5. 만료된 OTP를 정리하고 새 OTP를 저장합니다.
     let generation_time = chrono::Utc::now().timestamp();
     let otp_auth = OtpAuth {
         student_id: student_id.clone(),
@@ -616,6 +616,15 @@ async fn handle_generate_otp(
     };
 
     let mut store = otp_store.lock().unwrap();
+
+    // 만료된 OTP 정리
+    let original_len = store.len();
+    store.retain(|_otp, auth| auth.expiration_time > generation_time);
+    let removed_count = original_len - store.len();
+    if removed_count > 0 {
+        log.info(&format!("Cleaned up {} expired OTP(s).", removed_count));
+    }
+
     store.insert(otp.clone(), otp_auth);
     log.info("New OTP saved to store.");
 
@@ -828,7 +837,7 @@ async fn handle_login(
     let student_id = Uuid::new_v5(&NAMESPACE_UUID, combined_string.as_bytes()).to_string();
 
     // CORRECT: Initialize the logger with the stable student_id and the user-provided name from the start.
-    let mut log = LogFlow::new(&student_id[0..5], &payload.user);
+    let mut log = LogFlow::new(&student_id[0..8], &payload.user);
     log.info(&format!("Login/Register attempt from IP: {}", ip));
     log.enter();
 
