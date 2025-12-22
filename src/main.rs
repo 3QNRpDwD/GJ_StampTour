@@ -346,7 +346,7 @@ async fn handle_check(
     let ip = get_client_ip(&req);
     let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
 
-    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..5], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Check request from IP: {}", ip));
     log.enter();
 
@@ -410,7 +410,7 @@ impl LogFlow {
         let req_id = Uuid::new_v4().to_string()[0..5].to_string();
         Self {
             req_id,
-            user_id: user_id[0..8].to_string(),
+            user_id: user_id.to_string(),
             user_name: user_name.to_string(),
             depth: 0,
         }
@@ -493,7 +493,7 @@ async fn handle_stamp(
     );
 
     // 2. LogFlow 생성 (여기서 요청 ID가 발급됨)
-    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..5], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Stamp request initiated from IP: {}", ip));
 
     // 3. 사용자 인증
@@ -574,7 +574,7 @@ async fn handle_generate_otp(
 ) -> impl Responder {
     let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
     let ip = get_client_ip(&req);
-    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..5], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("OTP generation request from IP: {}", ip));
     log.enter();
 
@@ -828,7 +828,7 @@ async fn handle_login(
     let student_id = Uuid::new_v5(&NAMESPACE_UUID, combined_string.as_bytes()).to_string();
 
     // CORRECT: Initialize the logger with the stable student_id and the user-provided name from the start.
-    let mut log = LogFlow::new(&student_id, &payload.user);
+    let mut log = LogFlow::new(&student_id[0..5], &payload.user);
     log.info(&format!("Login/Register attempt from IP: {}", ip));
     log.enter();
 
