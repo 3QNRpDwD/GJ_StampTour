@@ -1,0 +1,6 @@
+2025-12-22 22:48:43 [INFO] - pwrd[25498] [30820이정우|Login] ⦿ Login/Register attempt from IP: 127.0.0.1
+2025-12-22 22:48:43 [INFO] - pwrd[25498] [d9b80c4d-a0e5-55af-908c-39999508b7c5|Login]   └── User not found, proceeding with new registration.
+2025-12-22 22:48:44 [INFO] - pwrd[25498] [d9b80c4d-a0e5-55af-908c-39999508b7c5|Login]     └── Password hashed successfully.
+2025-12-22 22:48:44 [INFO] - pwrd[25498] [d9b80c4d-a0e5-55af-908c-39999508b7c5|Login]     └── New user saved to database.
+2025-12-22 22:48:44 [INFO] - pwrd[25498] [d9b80c4d-a0e5-55af-908c-39999508b7c5|Login]     └── Cookies generated for new user.
+2025-12-22 22:48:44 [INFO] - pwrd[25498] [d9b80c4d-a0e5-55af-908c-39999508b7c5|Login]     └── ✅ New user registration complete.

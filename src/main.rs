@@ -43,8 +43,8 @@ type OtpStore = HashMap<String, OtpAuth>;
 
 #[derive(Serialize, Clone, Debug)]
 struct SuccessfulOtpInfo {
-    last_otp: String,
-    last_stamp_id: String,
+    otp: String,
+    stamp_id: String,
     timestamp: i64,
 }
 
@@ -53,7 +53,7 @@ type UserSuccessHistory = HashMap<String, SuccessfulOtpInfo>;
 #[derive(Serialize)]
 struct GenerateOtpResponse {
     otp: String,
-    previous_success: Option<SuccessfulOtpInfo>,
+    last: Option<SuccessfulOtpInfo>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -288,29 +288,17 @@ async fn handle_401() -> HttpResponse {
 async fn handle_req(req: HttpRequest) -> impl Responder {
     let folder = req.match_info().get("folder").unwrap();
     let file_name = req.match_info().query("file");
-    let ip = get_client_ip(&req);
-    
-    // For file requests, use the IP as the main context identifier.
-    let mut log = LogFlow::new(&ip);
-    log.info(&format!("File request for: '{}/{}'", folder, file_name));
-    log.enter();
 
     match path(folder, file_name).await {
         Ok(result) => {
             if result.contains("File not found") {
-                log.warn(&format!("File not found at path: '{}/{}'", folder, file_name));
-                log.leave();
                 handle_404().await
             } else {
-                log.success("File served successfully.");
-                log.leave();
                 HttpResponse::Ok().body(result)
             }
         }
         Err(error) => {
             // This case implies a binary file was served.
-            log.success("Binary file served successfully.");
-            log.leave();
             HttpResponse::Ok().body(error)
         }
     }
@@ -357,7 +345,7 @@ async fn handle_check(
     let ip = get_client_ip(&req);
     let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
 
-    let mut log = LogFlow::new(&student_id);
+    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Check request from IP: {}", ip));
     log.enter();
 
@@ -409,40 +397,43 @@ async fn handle_check(
 
 // 로그 흐름을 관리할 헬퍼 구조체
 struct LogFlow {
-    req_id: String,   // 요청 고유 ID (로그 그룹화용)
-    user_id: String,  // 유저 ID
-    depth: usize,     // 현재 들여쓰기 깊이
+    req_id: String,
+    user_id: String,
+    user_name: String,
+    depth: usize,
 }
 
 impl LogFlow {
     // 생성자: 요청이 처음 들어왔을 때 만듦
-    fn new(user_id: &str) -> Self {
-        // 랜덤 요청 ID 생성 (앞 5자리만 사용하여 짧게)
-        let req_id = Uuid::new_v4().to_string()[..5].to_string();
+    fn new(user_id: &str, user_name: &str) -> Self {
+        let req_id = Uuid::new_v4().to_string()[0..5].to_string();
         Self {
             req_id,
-            user_id: user_id.to_string(),
+            user_id: user_id[0..8].to_string(),
+            user_name: user_name.to_string(),
             depth: 0,
         }
     }
 
     // 일반 로그 (진행 상황)
     fn info(&self, msg: &str) {
-        let indent = "  ".repeat(self.depth); // 깊이만큼 공백 추가
-        // [ReqID] [UserID]   └── 메시지 형태
-        info!("pwrd[{}] [{}] {}└── {}", self.req_id, self.user_id, indent, msg);
+        let indent_spaces = "  ".repeat(self.depth);
+        let symbol = if self.depth == 0 { "⦿ " } else { "└── " };
+        info!("pwrd[{}] [{}|{}] {}{}{}", self.req_id, self.user_id, self.user_name, indent_spaces, symbol, msg);
     }
 
     // 강조 로그 (성공/완료)
     fn success(&self, msg: &str) {
-        let indent = "  ".repeat(self.depth);
-        info!("pwrd[{}] [{}] {}✅ {}", self.req_id, self.user_id, indent, msg);
+        let indent_spaces = "  ".repeat(self.depth);
+        let symbol = if self.depth == 0 { "⦿ " } else { "└── " };
+        info!("pwrd[{}] [{}|{}] {}{}✅{}", self.req_id, self.user_id, self.user_name, indent_spaces, symbol, msg);
     }
 
     // 경고 로그
     fn warn(&self, msg: &str) {
-        let indent = "  ".repeat(self.depth);
-        warn!("pwrd[{}] [{}] {}⚠️ {}", self.req_id, self.user_id, indent, msg);
+        let indent_spaces = "  ".repeat(self.depth);
+        let symbol = if self.depth == 0 { "⦿ " } else { "└── " };
+        warn!("pwrd[{}] [{}|{}] {}{}⚠️{}", self.req_id, self.user_id, self.user_name, indent_spaces, symbol, msg);
     }
 
     // 깊이 증가 (하위 로직 진입 시)
@@ -501,7 +492,7 @@ async fn handle_stamp(
     );
 
     // 2. LogFlow 생성 (여기서 요청 ID가 발급됨)
-    let mut log = LogFlow::new(&student_id);
+    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Stamp request initiated from IP: {}", ip));
 
     // 3. 사용자 인증
@@ -582,7 +573,7 @@ async fn handle_generate_otp(
 ) -> impl Responder {
     let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
     let ip = get_client_ip(&req);
-    let mut log = LogFlow::new(&student_id);
+    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("OTP generation request from IP: {}", ip));
     log.enter();
 
@@ -604,8 +595,8 @@ async fn handle_generate_otp(
 
     // 3. 이전 성공 이력 조회
     let success_history = user_success_history.lock().unwrap();
-    let previous_success = success_history.get(&student_id).cloned();
-    if previous_success.is_some() {
+    let last = success_history.get(&student_id).cloned();
+    if last.is_some() {
         log.info("Found previous successful OTP for this user.");
     }
 
@@ -632,7 +623,7 @@ async fn handle_generate_otp(
     log.leave();
     HttpResponse::Ok().json(GenerateOtpResponse {
         otp,
-        previous_success,
+        last,
     })
 }
 
@@ -650,7 +641,7 @@ async fn handle_issue_stamp(
     user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
     // Kiosk requests don't have user context initially. Use OTP as a temporary ID.
-    let mut log = LogFlow::new(&format!("OTP:{}", payload.otp));
+    let mut log = LogFlow::new(&payload.stamp_id, &format!("OTP:{}", payload.otp));
     log.info(&format!("Stamp issuance request from Kiosk for StampID: {}", payload.stamp_id));
     log.enter();
 
@@ -721,8 +712,8 @@ async fn handle_issue_stamp(
     // 5. 성공 이력 저장
     let mut success_history = user_success_history.lock().unwrap();
     let success_info = SuccessfulOtpInfo {
-        last_otp: payload.otp.clone(),
-        last_stamp_id: payload.stamp_id.clone(),
+        otp: payload.otp.clone(),
+        stamp_id: payload.stamp_id.clone(),
         timestamp: current_timestamp,
     };
     success_history.insert(user.student_id.clone(), success_info);
@@ -741,7 +732,7 @@ async fn handle_admin(
     req: HttpRequest,
 ) -> HttpResponse {
     let ip = get_client_ip(&req);
-    let mut log = LogFlow::new("Admin");
+    let mut log = LogFlow::new("Admin", "nimbA");
     log.info(&format!("Admin command request from IP: {}", ip));
     log.enter();
 
@@ -825,21 +816,19 @@ async fn handle_login(
     user_list: Data<Mutex<UserList>>,
 ) -> HttpResponse {
     let ip = get_client_ip(&req);
-    // Use the provided username for the initial log context.
-    let mut log = LogFlow::new(&payload.user);
-    log.info(&format!("Login/Register attempt from IP: {}", ip));
-    log.enter();
-
-    let mut users = user_list.lock().unwrap();
-    let current_ua = get_user_agent(&req);
     let combined_string = format!(
         "{}:{}",
         payload.user, payload.password
     );
     let student_id = Uuid::new_v5(&NAMESPACE_UUID, combined_string.as_bytes()).to_string();
-    
-    // Update the log's context now that we have the definitive student_id
-    log.user_id = student_id.clone();
+
+    // CORRECT: Initialize the logger with the stable student_id and the user-provided name from the start.
+    let mut log = LogFlow::new(&student_id, &payload.user);
+    log.info(&format!("Login/Register attempt from IP: {}", ip));
+    log.enter();
+
+    let mut users = user_list.lock().unwrap();
+    let current_ua = get_user_agent(&req);
 
     match users.users.get(&student_id) {
         // --- User Exists -> Login ---
@@ -874,10 +863,8 @@ async fn handle_login(
                     h
                 },
                 Err(e) => {
-                    // This is a server error, so a simple 'error!' is also fine.
-                    // But for consistency, we can use the logger.
                     log.warn(&format!("Error hashing password: {}", e));
-                    error!("Critical error hashing password: {}", e); // Also keep system-level error
+                    error!("Critical error hashing password: {}", e);
                     log.leave();
                     log.leave();
                     return HttpResponse::InternalServerError().finish();
@@ -888,7 +875,7 @@ async fn handle_login(
                 student_id: student_id.clone(),
                 user_name: payload.user.clone(),
                 password_hash,
-                user_agent: current_ua, // 등록 시 UA 저장
+                user_agent: current_ua,
             };
 
             users.users.insert(student_id.clone(), new_user.clone());
