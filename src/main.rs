@@ -60,6 +60,7 @@ struct GenerateOtpResponse {
 struct KioskStampRequest {
     otp: String,
     stamp_id: String,
+    stamp_name: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Hash)]
@@ -601,7 +602,7 @@ async fn handle_generate_otp(
     }
 
     // 4. 6자리 랜덤 OTP 생성
-    const OTP_VALIDITY_SECONDS: i64 = 60;
+    const OTP_VALIDITY_SECONDS: i64 = 30;
     let mut rng = rand::thread_rng();
     let otp = format!("{:06}", rng.gen_range(0..1_000_000));
     log.info(&format!("Generated new OTP: {}", otp));
@@ -629,7 +630,9 @@ async fn handle_generate_otp(
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SUC {
-    status: String
+    status: String,
+    user_name: String,
+    user_id: String
 }
 
 async fn handle_issue_stamp(
@@ -640,22 +643,22 @@ async fn handle_issue_stamp(
     otp_store: Data<Mutex<OtpStore>>,
     user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
-    // Kiosk requests don't have user context initially. Use OTP as a temporary ID.
-    let mut log = LogFlow::new(&payload.stamp_id, &format!("OTP:{}", payload.otp));
-    log.info(&format!("Stamp issuance request from Kiosk for StampID: {}", payload.stamp_id));
+    // Kiosk 요청은 초기에 사용자 컨텍스트가 없으므로, OTP와 스탬프 ID를 기반으로 로그를 시작합니다.
+    let mut log = LogFlow::new("Kiosk", &format!("stamp:{}|otp:{}", payload.stamp_name,payload.otp));
+    log.info(&format!("Stamp issuance request for stamp '{}'", payload.stamp_id));
     log.enter();
 
     // 1. OTP 조회 및 제거
     let mut store = otp_store.lock().unwrap();
     let otp_auth = match store.remove(&payload.otp) {
         Some(auth) => {
+            // OTP가 유효하면, 이제 사용자 ID를 알 수 있으므로 로거 컨텍스트를 업데이트합니다.
+            log.user_id = auth.student_id.chars().take(8).collect();
             log.info("OTP found and consumed.");
-            // Now we have the student_id, update the logger context.
-            log.user_id = auth.student_id.clone();
             auth
         },
         None => {
-            log.warn("Invalid or already used OTP.");
+            log.warn(&format!("Invalid or already used OTP: {}", payload.otp));
             log.leave();
             return HttpResponse::BadRequest().body("Invalid or already used OTP.");
         }
@@ -675,12 +678,14 @@ async fn handle_issue_stamp(
     let users = user_list.lock().unwrap();
     let user = match users.users.get(&otp_auth.student_id) {
         Some(u) => {
+            // 사용자 이름을 찾았으므로 로거 컨텍스트를 다시 업데이트합니다.
+            log.user_name = u.user_name.clone();
             log.info("User validation successful.");
             u
         },
         None => {
             // 이 경우는 OTP가 발급되었으나 그 사이 유저가 삭제된 극히 드문 케이스
-            log.warn("User associated with OTP not found in database.");
+            log.warn(&format!("User with ID {} not found, though OTP was valid.", otp_auth.student_id));
             log.leave();
             log.leave();
             return HttpResponse::BadRequest().body("Invalid user.");
@@ -719,10 +724,10 @@ async fn handle_issue_stamp(
     success_history.insert(user.student_id.clone(), success_info);
     log.info("Stamp issuance success history saved.");
 
-    log.success(&format!("Successfully issued stamp '{}' to user '{}'", payload.stamp_id, user.student_id));
+    log.success(&format!("Successfully issued stamp '{}' to user '{}' ({})", payload.stamp_id, user.user_name, user.student_id));
     log.leave();
 
-    HttpResponse::Ok().json(SUC {status:String::from("success")})
+    HttpResponse::Ok().json(SUC {status:String::from("success"), user_name: user.user_name.clone(), user_id: user.student_id.clone() })
 }
 
 async fn handle_admin(
