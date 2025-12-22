@@ -572,9 +572,9 @@ async fn handle_generate_otp(
     user_list: Data<Mutex<UserList>>,
     user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
-    let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
+    let student_id = req.cookie("user_id").map_or("Guest1234".to_string(), |c| c.value().to_string());
     let ip = get_client_ip(&req);
-    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..8], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("OTP generation request from IP: {}", ip));
     log.enter();
 
@@ -687,8 +687,6 @@ async fn handle_issue_stamp(
     let users = user_list.lock().unwrap();
     let user = match users.users.get(&otp_auth.student_id) {
         Some(u) => {
-            // 사용자 이름을 찾았으므로 로거 컨텍스트를 다시 업데이트합니다.
-            log.user_name = format!("stamp:{}|user:{}", &payload.stamp_name, &u.user_name);
             log.info("User validation successful.");
             u
         },
@@ -1318,7 +1316,7 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(
-                Logger::new(r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %Dms"#)
+                Logger::new(r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %Dms\n"#)
                     .exclude("/favicon.ico") // 예시
                     // 주의: /{folder}/{file} 같은 동적 라우트는 exclude로 잡기 어렵습니다.
                     // 따라서 미들웨어는 '시스템 로그'용으로 두고,

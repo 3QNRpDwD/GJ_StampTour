@@ -1,0 +1,30 @@
+2025-12-23 02:00:46 [INFO] - [ version ]: 0.1.2 | Rust http Actix-web server started at http://127.0.0.1:80
+2025-12-23 02:00:46 [WARN] - User List Database load Failed
+2025-12-23 02:00:46 [INFO] - Stamp Database load complete
+2025-12-23 02:00:46 [WARN] - Stamp History load Failed
+2025-12-23 02:00:46 [INFO] - starting 12 workers
+2025-12-23 02:00:46 [INFO] - Actix runtime found; starting in Actix runtime
+2025-12-23 02:00:46 [INFO] - starting service: "actix-web-service-127.0.0.1:80", workers: 12, listening on: 127.0.0.1:802025-12-23 02:03:31 [INFO] - pwrd[47b10] [d9b80c4d|30820이정우] ⦿ Login/Register attempt from IP: 127.0.0.1
+2025-12-23 02:03:31 [INFO] - pwrd[47b10] [d9b80c4d|30820이정우]   └── User not found, proceeding with new registration.
+2025-12-23 02:03:31 [INFO] - pwrd[47b10] [d9b80c4d|30820이정우]     └── Password hashed successfully.
+2025-12-23 02:03:31 [INFO] - pwrd[47b10] [d9b80c4d|30820이정우]     └── New user saved to database.
+2025-12-23 02:03:31 [INFO] - pwrd[47b10] [d9b80c4d|30820이정우]     └── Cookies generated for new user.
+2025-12-23 02:03:31 [INFO] - pwrd[47b10] [d9b80c4d|30820이정우]     └── ✅New user registration complete.
+2025-12-23 02:03:33 [INFO] - pwrd[94919] [d9b80c4d|30820이정우] ⦿ OTP generation request from IP: 127.0.0.1
+2025-12-23 02:03:33 [INFO] - pwrd[94919] [d9b80c4d|30820이정우]   └── User authenticated and verified.
+2025-12-23 02:03:33 [INFO] - pwrd[94919] [d9b80c4d|30820이정우]   └── Generated new OTP: 153460
+2025-12-23 02:03:33 [INFO] - pwrd[94919] [d9b80c4d|30820이정우]   └── New OTP saved to store.
+2025-12-23 02:03:33 [INFO] - pwrd[94919] [d9b80c4d|30820이정우]   └── ✅OTP generation process complete.
+2025-12-23 02:04:04 [INFO] - pwrd[9e080] [d9b80c4d|30820이정우] ⦿ OTP generation request from IP: 127.0.0.1
+2025-12-23 02:04:04 [INFO] - pwrd[9e080] [d9b80c4d|30820이정우]   └── User authenticated and verified.
+2025-12-23 02:04:04 [INFO] - pwrd[9e080] [d9b80c4d|30820이정우]   └── Generated new OTP: 238639
+2025-12-23 02:04:04 [INFO] - pwrd[9e080] [d9b80c4d|30820이정우]   └── Cleaned up 1 expired OTP(s).
+2025-12-23 02:04:04 [INFO] - pwrd[9e080] [d9b80c4d|30820이정우]   └── New OTP saved to store.
+2025-12-23 02:04:04 [INFO] - pwrd[9e080] [d9b80c4d|30820이정우]   └── ✅OTP generation process complete.
+2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|otp:238639] ⦿ Stamp issuance request for stamp '8FCEF90F-8F73-489B-B42A-FDB1402F8ABF'
+2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|user:d9b80c4d]   └── OTP found and consumed.
+2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|user:d9b80c4d]   └── OTP is valid and not expired.
+2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|user:30820이정우]     └── User validation successful.
+2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|user:30820이정우]     └── Stamp ID validation successful.2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|user:30820이정우]   └── Issuing stamp and recording history.
+2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|user:30820이정우]   └── Stamp issuance success history saved.
+2025-12-23 02:04:21 [INFO] - pwrd[4e82f] [Kiosk|stamp:sexystam|user:30820이정우]   └── ✅Successfully issued stamp '8FCEF90F-8F73-489B-B42A-FDB1402F8ABF' to user '30820이정우' (d9b80c4d-a0e5-55af-908c-39999508b7c5)
