@@ -43,8 +43,8 @@ type OtpStore = HashMap<String, OtpAuth>;
 
 #[derive(Serialize, Clone, Debug)]
 struct SuccessfulOtpInfo {
-    otp: String,
-    stamp_id: String,
+    last_otp: String,
+    last_stamp_id: String,
     timestamp: i64,
 }
 
@@ -52,7 +52,7 @@ type UserSuccessHistory = HashMap<String, SuccessfulOtpInfo>;
 
 #[derive(Serialize)]
 struct GenerateOtpResponse {
-    new_otp: String,
+    otp: String,
     previous_success: Option<SuccessfulOtpInfo>,
 }
 
@@ -289,21 +289,30 @@ async fn handle_req(req: HttpRequest) -> impl Responder {
     let folder = req.match_info().get("folder").unwrap();
     let file_name = req.match_info().query("file");
     let ip = get_client_ip(&req);
+    
+    // For file requests, use the IP as the main context identifier.
+    let mut log = LogFlow::new(&ip);
+    log.info(&format!("File request for: '{}/{}'", folder, file_name));
+    log.enter();
 
-    // [변경] 파일 요청은 DEBUG 레벨로 기록하여 평소에는 숨김
-    log::debug!("[File Request] [IP: {}] {}/{}", ip, folder, file_name);
-
-    match path(&*folder, file_name).await {
+    match path(folder, file_name).await {
         Ok(result) => {
-            if result.contains("File not found file error") {
-                // 파일이 없을 때만 Warn/Error 레벨 유지
-                warn!("[File Not Found] [IP: {}] {}/{}", ip, folder, file_name);
+            if result.contains("File not found") {
+                log.warn(&format!("File not found at path: '{}/{}'", folder, file_name));
+                log.leave();
                 handle_404().await
             } else {
+                log.success("File served successfully.");
+                log.leave();
                 HttpResponse::Ok().body(result)
             }
         }
-        Err(error) => HttpResponse::Ok().body(error),
+        Err(error) => {
+            // This case implies a binary file was served.
+            log.success("Binary file served successfully.");
+            log.leave();
+            HttpResponse::Ok().body(error)
+        }
     }
 }
 
@@ -345,58 +354,106 @@ async fn handle_check(
     stamp_id_list: Data<StampIdList>,
     user_stamp_list: Data<Mutex<UserStampList>>,
 ) -> impl Responder {
-    // 유저의 쿠키 확인
     let ip = get_client_ip(&req);
-    let cookie = req.cookie("user_id");
+    let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
 
-    // 쿠키가 없을 경우 임시 리다이렉션 반환
-    if cookie.is_none() {
-        warn!("⚠️ [ACCESS_DENIED] [IP:{}] Unauthenticated access attempt to stamp.", ip);
+    let mut log = LogFlow::new(&student_id);
+    log.info(&format!("Check request from IP: {}", ip));
+    log.enter();
+
+    if student_id == "Guest" {
+        log.warn("Unauthenticated access to check page. Redirecting.");
+        log.leave();
         return Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary();
     }
 
-    // 쿠키가 있을 경우 쿠키 값을 가져옴
-    let student_id = cookie.unwrap().value().to_string();
-    let users_guard = user_list.lock().unwrap(); // Lock 범위 최소화 권장
+    let users_guard = user_list.lock().unwrap();
 
-    // 유저 확인
-    if !users_guard.users.contains_key(&student_id) {
-        warn!("🚨 [FORGED_COOKIE] [UID:{}] [IP:{}] Invalid cookie detected.", student_id, ip);
-        return Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary();
-    }
+    let user = match users_guard.users.get(&student_id) {
+        Some(u) => u,
+        None => {
+            log.warn("Invalid/forged cookie detected. Redirecting.");
+            log.leave();
+            return Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary();
+        }
+    };
+    
+    log.info("User verification passed.");
 
-    // UA 검증 (보안 로그)
-    let user = users_guard.users.get(&student_id).unwrap();
     let current_ua = get_user_agent(&req);
     let ua_check = check_ua_consistency(&current_ua, &user.user_agent);
 
-    // UA가 다르면 경고, 같으면 디버그 수준 (너무 시끄러울 수 있으므로)
     if ua_check.starts_with("MISMATCH") {
-        warn!("🕵️ [SUSPICIOUS_UA] [UID:{}] [IP:{}] [UA_Status:{}] User Agent changed since login.", student_id, ip, ua_check);
+        log.warn(&format!("Suspicious User Agent change detected: {}", ua_check));
+    } else {
+        log.info("User Agent is consistent.");
     }
 
     let stamp_id = req.query_string().split("s=").nth(1).unwrap_or_default().to_string();
 
-    // 유효한 스템프 ID인 경우 유저의 스템프 정보 갱신
     if stamp_id_list.stamp_id_list.contains_key(&stamp_id) {
-        // 로그 출력: 유저 ID 및 스템프 ID 정보 출력
-        info!(
-            "👀 [STAMP_VIEW] [UID:{}] [Name:{}] [StampID:{}] [IP:{}] User viewing stamp page.",
-            student_id, user.user_name, stamp_id, ip
-        );
+        log.info(&format!("Registering pending stamp [{}] for user.", stamp_id));
+        let mut user_stamp_list = user_stamp_list.lock().unwrap();
+        user_stamp_list
+            .user_stamp_list
+            .insert(student_id.clone(), stamp_id.clone());
+        log.success("Pending stamp successfully registered.");
+    } else {
+        log.info("Request did not contain a valid stamp ID to register.");
+    }
+    
+    log.leave();
+    log.info("Redirecting user to a random URL.");
+    Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary()
+}
 
-        // Mutex를 사용하여 유저의 스템프 정보 갱신
-        {
-            let mut user_stamp_list = user_stamp_list.lock().unwrap();
-            user_stamp_list
-                .user_stamp_list
-                .insert(student_id.clone(), stamp_id.clone());
-            // user_stamp_list는 여기서 더 이상 사용되지 않으므로 이 지점에서 뮤텍스 해제
+// 로그 흐름을 관리할 헬퍼 구조체
+struct LogFlow {
+    req_id: String,   // 요청 고유 ID (로그 그룹화용)
+    user_id: String,  // 유저 ID
+    depth: usize,     // 현재 들여쓰기 깊이
+}
+
+impl LogFlow {
+    // 생성자: 요청이 처음 들어왔을 때 만듦
+    fn new(user_id: &str) -> Self {
+        // 랜덤 요청 ID 생성 (앞 5자리만 사용하여 짧게)
+        let req_id = Uuid::new_v4().to_string()[..5].to_string();
+        Self {
+            req_id,
+            user_id: user_id.to_string(),
+            depth: 0,
         }
     }
 
-    // 아무 의미없는 랜덤 주소로 리다이렉션
-    Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary()
+    // 일반 로그 (진행 상황)
+    fn info(&self, msg: &str) {
+        let indent = "  ".repeat(self.depth); // 깊이만큼 공백 추가
+        // [ReqID] [UserID]   └── 메시지 형태
+        info!("pwrd[{}] [{}] {}└── {}", self.req_id, self.user_id, indent, msg);
+    }
+
+    // 강조 로그 (성공/완료)
+    fn success(&self, msg: &str) {
+        let indent = "  ".repeat(self.depth);
+        info!("pwrd[{}] [{}] {}✅ {}", self.req_id, self.user_id, indent, msg);
+    }
+
+    // 경고 로그
+    fn warn(&self, msg: &str) {
+        let indent = "  ".repeat(self.depth);
+        warn!("pwrd[{}] [{}] {}⚠️ {}", self.req_id, self.user_id, indent, msg);
+    }
+
+    // 깊이 증가 (하위 로직 진입 시)
+    fn enter(&mut self) {
+        self.depth += 1;
+    }
+
+    // 깊이 감소 (로직 복귀 시)
+    fn leave(&mut self) {
+        if self.depth > 0 { self.depth -= 1; }
+    }
 }
 
 /// 스템프 찍기 요청을 처리하는 비동기 함수입니다. 유저의 쿠키를 확인하고, 해당 유저의 스템프를 가져온 후,
@@ -436,56 +493,75 @@ async fn handle_stamp(
     user_history: Data<Mutex<StampHistory>>,
 ) -> impl Responder {
     let ip = get_client_ip(&req);
-    // 1. 사용자 인증 (쿠키에서 user_id 가져오기)
-    let student_id = match req.cookie("user_id") {
-        Some(cookie) => cookie.value().to_string(),
+
+    // 1. 쿠키 확인 (아직 유저 ID를 모르는 상태)
+    let student_id = req.cookie("user_id").map_or_else(
+        || "Guest".to_string(),
+        |c| c.value().to_string()
+    );
+
+    // 2. LogFlow 생성 (여기서 요청 ID가 발급됨)
+    let mut log = LogFlow::new(&student_id);
+    log.info(&format!("Stamp request initiated from IP: {}", ip));
+
+    // 3. 사용자 인증
+    if student_id == "Guest" {
+        log.warn("No cookie presented for stamping.");
+        return handle_401().await;
+    }
+
+    log.enter(); // --- 로직 깊이 증가 ---
+
+    // 4. 쿠키의 user_id가 실제 사용자인지 검증
+    let users = user_list.lock().unwrap();
+    let (user_name, stored_ua) = match users.users.get(&student_id) {
+        Some(user) => {
+            log.info("User verification passed.");
+            (user.user_name.clone(), user.user_agent.clone())
+        },
         None => {
-            warn!("⚠️ [STAMP_FAIL] [IP:{}] No cookie presented for stamping.", ip);
+            log.warn("Invalid user_id in cookie.");
+            log.leave();
             return handle_401().await;
         }
     };
 
-    // 2. 쿠키의 user_id가 실제 사용자인지 검증
-    let users = user_list.lock().unwrap();
-    if !users.users.contains_key(&student_id) {
-        warn!("🚫 [STAMP_REJECT] [UID:{}] [IP:{}] Invalid user_id in cookie.", student_id, ip);
-        return handle_401().await;
-    }
-
-    // 유저의 스템프 정보를 복사
+    // 5. 스탬프 대기열 확인
     let su_list = user_stamp_list.lock().unwrap().user_stamp_list.clone();
+    let stamp_id = match su_list.get(&student_id) {
+        Some(id) => {
+            log.info(&format!("Found pending stamp: {}", id));
+            id.clone()
+        },
+        None => {
+            log.warn("No pending stamp found for this user (flow error).");
+            log.leave();
+            return handle_401().await;
+        }
+    };
 
-    // 유저의 스템프 정보를 확인하고 찾은 경우 갱신 및 형식화된 HTML 반환
-    if !su_list.contains_key(&student_id) {
-        warn!("🚫 [STAMP_REJECT] [UID:{}] [IP:{}] User attempted unauthorized stamp access (flow error).", student_id, ip);
-        return handle_401().await;
-    }
-
-    let stamp_id = su_list.get(&student_id).unwrap().clone();
+    // 6. 스탬프 처리
     user_stamp_list.lock().unwrap().user_stamp_list.remove(&student_id);
-    
     let timestamp = chrono::prelude::Utc::now().to_string();
-
-    // 유저 정보 가져오기 (로그용)
-    let (user_name, stored_ua) = users.users.get(&student_id)
-        .map_or(("Unknown".to_string(), "".to_string()), |u| (u.user_name.clone(), u.user_agent.clone()));
 
     // UA 재확인
     let current_ua = get_user_agent(&req);
     let ua_status = check_ua_consistency(&current_ua, &stored_ua);
+    log.info(&format!("UA consistency: {}", ua_status));
 
-    // ... (히스토리 저장 로직)
+    // 7. 히스토리 저장
     user_history.lock().unwrap().stamp_history.get_mut(&stamp_id).unwrap().extend(vec![StampUserInfo {
         student_id: student_id.to_string(),
         user_name: user_name.clone(),
         timestamp,
     }]);
+    log.info("Stamp history saved.");
 
-    // [변경] 스탬프 완료 로그 (성공 여부 명확히)
-    info!(
-        "✅ [STAMP_COMPLETE] [UID:{}] [Name:{}] [StampID:{}] [IP:{}] [UA:{}] Stamp process finished.",
-        student_id, user_name, stamp_id, ip, ua_status
-    );
+
+    log.leave(); // --- 로직 깊이 감소 ---
+
+    // 최종 완료
+    log.success("Stamp process finished successfully.");
 
     if !stamp_id.is_empty() {
         return HttpResponse::Ok()
@@ -493,7 +569,8 @@ async fn handle_stamp(
             .body(format_file(&stamp_id).await);
     }
 
-    warn!("❓ [STAMP_INVALID] [UID:{}] Invalid stamp ID processing.", student_id);
+    // 이 코드는 실행될 가능성이 낮지만 안전장치로 둡니다.
+    log.warn("Invalid stamp ID processing at the end.");
     handle_404().await
 }
 
@@ -503,33 +580,40 @@ async fn handle_generate_otp(
     user_list: Data<Mutex<UserList>>,
     user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
-    // 1. 사용자 인증 (쿠키에서 user_id 가져오기)
-    let student_id = match req.cookie("user_id") {
-        Some(cookie) => cookie.value().to_string(),
-        None => {
-            warn!("OTP generation failed: User not authenticated (no cookie).");
-            return HttpResponse::Unauthorized().finish();
-        }
-    };
+    let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
+    let ip = get_client_ip(&req);
+    let mut log = LogFlow::new(&student_id);
+    log.info(&format!("OTP generation request from IP: {}", ip));
+    log.enter();
 
-    // 2. 쿠키의 user_id가 실제 사용자인지 검증
-    let users = user_list.lock().unwrap();
-    if !users.users.contains_key(&student_id) {
-        warn!(
-            "OTP generation failed: Invalid user_id '{}' in cookie.",
-            student_id
-        );
+    // 1. 사용자 인증
+    if student_id == "Guest" {
+        log.warn("User not authenticated (no cookie).");
+        log.leave();
         return HttpResponse::Unauthorized().finish();
     }
+
+    // 2. 사용자 검증
+    let users = user_list.lock().unwrap();
+    if !users.users.contains_key(&student_id) {
+        log.warn("Invalid user_id in cookie.");
+        log.leave();
+        return HttpResponse::Unauthorized().finish();
+    }
+    log.info("User authenticated and verified.");
 
     // 3. 이전 성공 이력 조회
     let success_history = user_success_history.lock().unwrap();
     let previous_success = success_history.get(&student_id).cloned();
+    if previous_success.is_some() {
+        log.info("Found previous successful OTP for this user.");
+    }
 
     // 4. 6자리 랜덤 OTP 생성
     const OTP_VALIDITY_SECONDS: i64 = 60;
     let mut rng = rand::thread_rng();
     let otp = format!("{:06}", rng.gen_range(0..1_000_000));
+    log.info(&format!("Generated new OTP: {}", otp));
 
     // 5. OTP 데이터 생성 및 저장
     let generation_time = chrono::Utc::now().timestamp();
@@ -541,12 +625,13 @@ async fn handle_generate_otp(
 
     let mut store = otp_store.lock().unwrap();
     store.insert(otp.clone(), otp_auth);
+    log.info("New OTP saved to store.");
 
-    info!("Generated OTP {} for student_id: {}", otp, student_id);
-
-    // 6. 새로운 형식의 JSON으로 응답
+    // 6. 응답
+    log.success("OTP generation process complete.");
+    log.leave();
     HttpResponse::Ok().json(GenerateOtpResponse {
-        new_otp: otp,
+        otp,
         previous_success,
     })
 }
@@ -564,12 +649,23 @@ async fn handle_issue_stamp(
     otp_store: Data<Mutex<OtpStore>>,
     user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
+    // Kiosk requests don't have user context initially. Use OTP as a temporary ID.
+    let mut log = LogFlow::new(&format!("OTP:{}", payload.otp));
+    log.info(&format!("Stamp issuance request from Kiosk for StampID: {}", payload.stamp_id));
+    log.enter();
+
     // 1. OTP 조회 및 제거
     let mut store = otp_store.lock().unwrap();
     let otp_auth = match store.remove(&payload.otp) {
-        Some(auth) => auth,
+        Some(auth) => {
+            log.info("OTP found and consumed.");
+            // Now we have the student_id, update the logger context.
+            log.user_id = auth.student_id.clone();
+            auth
+        },
         None => {
-            warn!("Invalid OTP '{}' used.", payload.otp);
+            log.warn("Invalid or already used OTP.");
+            log.leave();
             return HttpResponse::BadRequest().body("Invalid or already used OTP.");
         }
     };
@@ -577,30 +673,40 @@ async fn handle_issue_stamp(
     // 2. 타임스탬프 유효성 검사
     let current_timestamp = chrono::Utc::now().timestamp();
     if current_timestamp > otp_auth.expiration_time {
-        warn!(
-            "Expired OTP '{}' used for student_id: {}. (Expired at: {})",
-            payload.otp, otp_auth.student_id, otp_auth.expiration_time
-        );
+        log.warn(&format!("Expired OTP used. (Expired at: {})", otp_auth.expiration_time));
+        log.leave();
         return HttpResponse::BadRequest().body("OTP has expired.");
     }
+    log.info("OTP is valid and not expired.");
 
     // 3. 사용자 및 스탬프 유효성 검사
+    log.enter();
     let users = user_list.lock().unwrap();
     let user = match users.users.get(&otp_auth.student_id) {
-        Some(u) => u,
+        Some(u) => {
+            log.info("User validation successful.");
+            u
+        },
         None => {
             // 이 경우는 OTP가 발급되었으나 그 사이 유저가 삭제된 극히 드문 케이스
-            warn!("Invalid student_id '{}' from valid OTP '{}'.", otp_auth.student_id, payload.otp);
+            log.warn("User associated with OTP not found in database.");
+            log.leave();
+            log.leave();
             return HttpResponse::BadRequest().body("Invalid user.");
         }
     };
 
     if !stamp_id_list.stamp_id_list.contains_key(&payload.stamp_id) {
-        warn!("Invalid stamp_id '{}' from kiosk.", payload.stamp_id);
+        log.warn(&format!("Invalid stamp_id '{}' from kiosk.", payload.stamp_id));
+        log.leave();
+        log.leave();
         return HttpResponse::BadRequest().body("Invalid stamp.");
     }
+    log.info("Stamp ID validation successful.");
+    log.leave();
 
     // 4. 스탬프 발급
+    log.info("Issuing stamp and recording history.");
     let mut history = user_history.lock().unwrap();
     let stamp_log = history.stamp_history.entry(payload.stamp_id.clone()).or_insert_with(Vec::new);
 
@@ -612,17 +718,18 @@ async fn handle_issue_stamp(
 
     stamp_log.push(user_info);
 
-    info!("Issued stamp '{}' to student_id '{}' via OTP", payload.stamp_id, user.student_id);
-
     // 5. 성공 이력 저장
     let mut success_history = user_success_history.lock().unwrap();
     let success_info = SuccessfulOtpInfo {
-        otp: payload.otp.clone(),
-        stamp_id: payload.stamp_id.clone(),
+        last_otp: payload.otp.clone(),
+        last_stamp_id: payload.stamp_id.clone(),
         timestamp: current_timestamp,
     };
     success_history.insert(user.student_id.clone(), success_info);
+    log.info("Stamp issuance success history saved.");
 
+    log.success(&format!("Successfully issued stamp '{}' to user '{}'", payload.stamp_id, user.student_id));
+    log.leave();
 
     HttpResponse::Ok().json(SUC {status:String::from("success")})
 }
@@ -633,37 +740,63 @@ async fn handle_admin(
     user_list: Data<Mutex<UserList>>,
     req: HttpRequest,
 ) -> HttpResponse {
-    let ip = req.peer_addr().unwrap().ip();
+    let ip = get_client_ip(&req);
+    let mut log = LogFlow::new("Admin");
+    log.info(&format!("Admin command request from IP: {}", ip));
+    log.enter();
+
+    if !req.peer_addr().unwrap().ip().is_loopback() {
+        log.warn(&format!("Unauthorized access attempt from non-loopback IP: {}", ip));
+        log.leave();
+        return handle_401().await;
+    }
+    
+    log.info("Admin access authorized.");
 
     let mut cmd_output = Command {
-        command: "".to_string(),
+        command: command.command.clone(),
         output: "Command not found".to_string(),
     };
 
-    if !ip.is_loopback() {
-        warn!(
-            "{}",
-            format!(
-                "{} Unauthorized access to the Admin page has been identified in .",
-                ip
-            )
-        );
-        return handle_401().await;
-    }
+    log.info(&format!("Executing command: '{}'", command.command));
+    log.enter();
 
     if command.command == "stamp status".to_string() {
-        info!(
-            "{}",
-            format!("Database lookup request : {}", command.command,)
-        );
-        save_file("stamp_status", stamp_history.lock().unwrap().clone()).unwrap();
-        cmd_output.output = format!("{:?}", stamp_history.lock().unwrap().clone())
+        if save_file("stamp_status", stamp_history.lock().unwrap().clone()).is_ok() {
+            log.info("Saved stamp_status database.");
+        } else {
+            log.warn("Failed to save stamp_status database.");
+        }
+        cmd_output.output = format!("{:?}", stamp_history.lock().unwrap().clone());
+        log.success("Command 'stamp status' executed.");
     } else if command.command == "save all".to_string() {
-        save_file("stamp_status", stamp_history.lock().unwrap().clone()).unwrap();
-        save_file("user_status", user_list.lock().unwrap().clone()).unwrap();
-        cmd_output.output = "All databases saved".to_string()
-    }
+        let mut all_saved = true;
+        if save_file("stamp_status", stamp_history.lock().unwrap().clone()).is_ok() {
+            log.info("Saved stamp_status database.");
+        } else {
+            log.warn("Failed to save stamp_status database.");
+            all_saved = false;
+        }
+        if save_file("user_status", user_list.lock().unwrap().clone()).is_ok() {
+            log.info("Saved user_status database.");
+        } else {
+            log.warn("Failed to save user_status database.");
+            all_saved = false;
+        }
 
+        if all_saved {
+            cmd_output.output = "All databases saved".to_string();
+            log.success("Command 'save all' executed successfully.");
+        } else {
+            cmd_output.output = "One or more databases failed to save.".to_string();
+            log.warn("Command 'save all' executed with errors.");
+        }
+    } else {
+        log.warn("Unknown command.");
+    }
+    
+    log.leave();
+    log.leave();
     HttpResponse::Ok().json(cmd_output)
 }
 
@@ -691,24 +824,29 @@ async fn handle_login(
     payload: Json<LoginRequest>,
     user_list: Data<Mutex<UserList>>,
 ) -> HttpResponse {
-    let mut users = user_list.lock().unwrap();
     let ip = get_client_ip(&req);
+    // Use the provided username for the initial log context.
+    let mut log = LogFlow::new(&payload.user);
+    log.info(&format!("Login/Register attempt from IP: {}", ip));
+    log.enter();
+
+    let mut users = user_list.lock().unwrap();
     let current_ua = get_user_agent(&req);
     let combined_string = format!(
         "{}:{}",
         payload.user, payload.password
     );
     let student_id = Uuid::new_v5(&NAMESPACE_UUID, combined_string.as_bytes()).to_string();
+    
+    // Update the log's context now that we have the definitive student_id
+    log.user_id = student_id.clone();
 
     match users.users.get(&student_id) {
         // --- User Exists -> Login ---
         Some(existing_user) => {
+            log.info("User found, proceeding with login.");
             let ua_status = check_ua_consistency(&current_ua, &existing_user.user_agent);
-
-            info!(
-                "🟢 [LOGIN_SUCCESS] [UID:{}] [Name:{}] [IP:{}] [UA:{}] User logged in.",
-                existing_user.student_id, existing_user.user_name, ip, ua_status
-            );
+            log.info(&format!("User-Agent consistency: {}", ua_status));
 
             let response_user = LoginResponse {
                 user_id: existing_user.student_id.clone(),
@@ -721,20 +859,27 @@ async fn handle_login(
                 .path("/")
                 .finish();
 
+            log.success("Login successful.");
+            log.leave();
             HttpResponse::Ok().cookie(cookie_user_name).cookie(cookie_user_id).json(response_user)
         }
         // --- User Not Found -> Register ---
         None => {
-            info!(
-                "🆕 [REGISTER_NEW] [UID (Gen):{}] [Name:{}] [IP:{}] [UA:New] New user registration.",
-                student_id, payload.user, ip
-            );
+            log.info("User not found, proceeding with new registration.");
+            log.enter();
 
-            // ... (기존 비밀번호 해시 및 유저 생성 로직)
             let password_hash = match bcrypt::hash(&payload.password, bcrypt::DEFAULT_COST) {
-                Ok(h) => h,
+                Ok(h) => {
+                    log.info("Password hashed successfully.");
+                    h
+                },
                 Err(e) => {
-                    error!("❌ [REGISTER_FAIL] [IP:{}] Error hashing password: {}", ip, e);
+                    // This is a server error, so a simple 'error!' is also fine.
+                    // But for consistency, we can use the logger.
+                    log.warn(&format!("Error hashing password: {}", e));
+                    error!("Critical error hashing password: {}", e); // Also keep system-level error
+                    log.leave();
+                    log.leave();
                     return HttpResponse::InternalServerError().finish();
                 }
             };
@@ -747,6 +892,7 @@ async fn handle_login(
             };
 
             users.users.insert(student_id.clone(), new_user.clone());
+            log.info("New user saved to database.");
 
             let response_user = LoginResponse {
                 user_id: new_user.student_id,
@@ -759,9 +905,11 @@ async fn handle_login(
             let cookie_user_id = Cookie::build("user_id", student_id.clone())
                 .path("/")
                 .finish();
-
-            info!("🆕 [COOKIE] user_name: {}, user_id: {}", cookie_user_name.to_string(), cookie_user_id.to_string());
-
+            
+            log.info("Cookies generated for new user.");
+            log.success("New user registration complete.");
+            log.leave();
+            log.leave();
             HttpResponse::Ok().cookie(cookie_user_name).cookie(cookie_user_id).json(response_user)
         }
     }
