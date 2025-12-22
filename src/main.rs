@@ -30,18 +30,31 @@ lazy_static! {
             .expect("Failed to parse NAMESPACE_UUID");
 }
 
-#[derive(Serialize)]
-struct OtpResponse {
-    otp: String,
-}
+
 
 #[derive(Clone, Debug)]
 struct OtpAuth {
     student_id: String,
-    timestamp: i64,
+    generation_time: i64,
+    expiration_time: i64,
 }
 
 type OtpStore = HashMap<String, OtpAuth>;
+
+#[derive(Serialize, Clone, Debug)]
+struct SuccessfulOtpInfo {
+    otp: String,
+    stamp_id: String,
+    timestamp: i64,
+}
+
+type UserSuccessHistory = HashMap<String, SuccessfulOtpInfo>;
+
+#[derive(Serialize)]
+struct GenerateOtpResponse {
+    new_otp: String,
+    previous_success: Option<SuccessfulOtpInfo>,
+}
 
 #[derive(Deserialize, Debug)]
 struct KioskStampRequest {
@@ -488,6 +501,7 @@ async fn handle_generate_otp(
     req: HttpRequest,
     otp_store: Data<Mutex<OtpStore>>,
     user_list: Data<Mutex<UserList>>,
+    user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
     // 1. 사용자 인증 (쿠키에서 user_id 가져오기)
     let student_id = match req.cookie("user_id") {
@@ -508,23 +522,33 @@ async fn handle_generate_otp(
         return HttpResponse::Unauthorized().finish();
     }
 
-    // 3. 6자리 랜덤 OTP 생성
+    // 3. 이전 성공 이력 조회
+    let success_history = user_success_history.lock().unwrap();
+    let previous_success = success_history.get(&student_id).cloned();
+
+    // 4. 6자리 랜덤 OTP 생성
+    const OTP_VALIDITY_SECONDS: i64 = 60;
     let mut rng = rand::thread_rng();
     let otp = format!("{:06}", rng.gen_range(0..1_000_000));
 
-    // 4. OTP 데이터 생성 및 저장
+    // 5. OTP 데이터 생성 및 저장
+    let generation_time = chrono::Utc::now().timestamp();
     let otp_auth = OtpAuth {
         student_id: student_id.clone(),
-        timestamp: chrono::Utc::now().timestamp(),
+        generation_time,
+        expiration_time: generation_time + OTP_VALIDITY_SECONDS,
     };
 
     let mut store = otp_store.lock().unwrap();
     store.insert(otp.clone(), otp_auth);
 
-    info!("Generated OTP {} for student_id: {}, {:?}", otp, student_id, store);
+    info!("Generated OTP {} for student_id: {}", otp, student_id);
 
-    // 5. OTP를 JSON으로 응답
-    HttpResponse::Ok().json(OtpResponse { otp })
+    // 6. 새로운 형식의 JSON으로 응답
+    HttpResponse::Ok().json(GenerateOtpResponse {
+        new_otp: otp,
+        previous_success,
+    })
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -538,9 +562,8 @@ async fn handle_issue_stamp(
     stamp_id_list: Data<StampIdList>,
     user_history: Data<Mutex<StampHistory>>,
     otp_store: Data<Mutex<OtpStore>>,
+    user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
-    const OTP_VALIDITY_SECONDS: i64 = 60;
-
     // 1. OTP 조회 및 제거
     let mut store = otp_store.lock().unwrap();
     let otp_auth = match store.remove(&payload.otp) {
@@ -553,8 +576,11 @@ async fn handle_issue_stamp(
 
     // 2. 타임스탬프 유효성 검사
     let current_timestamp = chrono::Utc::now().timestamp();
-    if current_timestamp - otp_auth.timestamp > OTP_VALIDITY_SECONDS {
-        warn!("Expired OTP '{}' used for student_id: {}", payload.otp, otp_auth.student_id);
+    if current_timestamp > otp_auth.expiration_time {
+        warn!(
+            "Expired OTP '{}' used for student_id: {}. (Expired at: {})",
+            payload.otp, otp_auth.student_id, otp_auth.expiration_time
+        );
         return HttpResponse::BadRequest().body("OTP has expired.");
     }
 
@@ -587,6 +613,16 @@ async fn handle_issue_stamp(
     stamp_log.push(user_info);
 
     info!("Issued stamp '{}' to student_id '{}' via OTP", payload.stamp_id, user.student_id);
+
+    // 5. 성공 이력 저장
+    let mut success_history = user_success_history.lock().unwrap();
+    let success_info = SuccessfulOtpInfo {
+        otp: payload.otp.clone(),
+        stamp_id: payload.stamp_id.clone(),
+        timestamp: current_timestamp,
+    };
+    success_history.insert(user.student_id.clone(), success_info);
+
 
     HttpResponse::Ok().json(SUC {status:String::from("success")})
 }
@@ -1126,6 +1162,10 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
     // OTP 저장소 초기화
     let otp_store: Data<Mutex<OtpStore>> = Data::new(Mutex::new(OtpStore::new()));
 
+    // 유저의 마지막 OTP 성공 이력 저장소 초기화
+    let user_success_history: Data<Mutex<UserSuccessHistory>> =
+        Data::new(Mutex::new(UserSuccessHistory::new()));
+
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -1150,6 +1190,7 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
             .app_data(Data::clone(&user_stamp_list)) // 전역변수 선언
             .app_data(Data::clone(&user_history)) // 전역변수 선언
             .app_data(Data::clone(&otp_store)) // OTP 저장소 전역 변수 선언
+            .app_data(Data::clone(&user_success_history)) // 마지막 OTP 성공 이력 저장소 전역 변수 선언
             .route("/", get().to(index)) // 인덱스 요청 처리
             .service(resource("/login").route(post().to(handle_login))) // 로그인 요청 처리
             .service(resource("/admin").route(post().to(handle_admin)))
