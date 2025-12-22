@@ -662,7 +662,7 @@ async fn handle_issue_stamp(
     let otp_auth = match store.remove(&payload.otp) {
         Some(auth) => {
             // OTP가 유효하면, 이제 사용자 ID를 알 수 있으므로 로거 컨텍스트를 업데이트합니다.
-            log.user_id = auth.student_id.chars().take(8).collect();
+            log.user_name = format!("stamp:{}|user:{}", &payload.stamp_name, &auth.student_id.chars().take(6).collect());
             log.info("OTP found and consumed.");
             auth
         },
@@ -688,7 +688,7 @@ async fn handle_issue_stamp(
     let user = match users.users.get(&otp_auth.student_id) {
         Some(u) => {
             // 사용자 이름을 찾았으므로 로거 컨텍스트를 다시 업데이트합니다.
-            log.user_name = u.user_name.clone();
+            log.user_name = format!("stamp:{}|user:{}", &payload.stamp_name, &u.user_name);
             log.info("User validation successful.");
             u
         },
