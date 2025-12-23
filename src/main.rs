@@ -30,13 +30,11 @@ lazy_static! {
             .expect("Failed to parse NAMESPACE_UUID");
 }
 
-
-
 #[derive(Clone, Debug)]
 struct OtpAuth {
     student_id: String,
     generation_time: i64,
-    expiration_time: i64,
+    expiration_time: i64
 }
 
 type OtpStore = HashMap<String, OtpAuth>;
@@ -45,7 +43,7 @@ type OtpStore = HashMap<String, OtpAuth>;
 struct SuccessfulOtpInfo {
     otp: String,
     stamp_id: String,
-    timestamp: i64,
+    timestamp: i64
 }
 
 type UserSuccessHistory = HashMap<String, SuccessfulOtpInfo>;
@@ -53,7 +51,7 @@ type UserSuccessHistory = HashMap<String, SuccessfulOtpInfo>;
 #[derive(Serialize)]
 struct GenerateOtpResponse {
     otp: String,
-    last: Option<SuccessfulOtpInfo>,
+    last: Option<SuccessfulOtpInfo>
 }
 
 #[derive(Deserialize, Debug)]
@@ -68,23 +66,23 @@ struct Stamp {
     stampId: String,
     stampLocation: String,
     stampName: String,
-    stampDesc: String,
+    stampDesc: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct StampList {
-    stampList: HashSet<Stamp>,
+    stampList: HashSet<Stamp>
 }
 
 #[derive(Debug, Clone)]
 struct StampIdList {
-    stamp_id_list: BTreeMap<String, Stamp>,
+    stamp_id_list: BTreeMap<String, Stamp>
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct LoginRequest {
     user: String,
-    password: String,
+    password: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
@@ -92,48 +90,48 @@ struct User {
     student_id: String,
     user_name: String,
     password_hash: String,
-    user_agent: String,
+    user_agent: String
 }
 
 #[derive(Clone)]
 struct AddressInfo {
     address: String,
     port: u16,
-    protocol: String,
+    protocol: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct UserList {
-    users: BTreeMap<String, User>,
+    users: BTreeMap<String, User>
 }
 
 #[derive(Debug, Clone)]
 struct UserStampList {
-    user_stamp_list: HashMap<String, String>,
+    user_stamp_list: HashMap<String, String>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct StampHistory {
-    stamp_history: HashMap<String, Vec<StampUserInfo>>,
+    stamp_history: HashMap<String, Vec<StampUserInfo>>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 struct StampUserInfo {
     student_id: String,
     user_name: String,
-    timestamp: String,
+    timestamp: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Command {
     command: String,
-    output: String,
+    output: String
 }
 
 #[derive(Serialize)]
 struct LoginResponse {
     user_id: String,
-    user_name: String,
+    user_name: String
 }
 
 use actix_multipart::Multipart;
@@ -849,14 +847,28 @@ async fn handle_admin(
     log.enter();
 
     if command.command == "stamp status".to_string() {
+        // 데이터 저장 로직 유지
         if save_file("stamp_status", stamp_history.lock().unwrap().clone()).is_ok() {
             log.info("Saved stamp_status database.");
         } else {
             log.warn("Failed to save stamp_status database.");
         }
-        cmd_output.output = format!("{:?}", stamp_history.lock().unwrap().clone());
-        log.success("Command 'stamp status' executed.");
+
+        // [수정됨] Debug 포맷({:?}) 대신 JSON String으로 직렬화
+        let data = stamp_history.lock().unwrap();
+        match serde_json::to_string(&*data) {
+            Ok(json_str) => {
+                cmd_output.output = json_str;
+                log.success("Command 'stamp status' executed: JSON output generated.");
+            },
+            Err(e) => {
+                log.error(&format!("Failed to serialize stamp status to JSON: {}", e));
+                cmd_output.output = "{}".to_string(); // 실패 시 빈 JSON 반환
+            }
+        }
+
     } else if command.command == "save all".to_string() {
+        // save all 로직 유지 (단순 상태 메시지 반환이므로 변경 불필요)
         let mut all_saved = true;
         if save_file("stamp_status", stamp_history.lock().unwrap().clone()).is_ok() {
             log.info("Saved stamp_status database.");
