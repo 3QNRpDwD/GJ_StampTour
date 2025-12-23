@@ -512,6 +512,12 @@ impl LogFlow {
         warn!("pwrd[{}] [{}|{}] {}{}⚠️{}", self.req_id, self.user_id, self.user_name, indent_spaces, symbol, msg);
     }
 
+    fn error(&self, msg: &str) {
+        let indent_spaces = "  ".repeat(self.depth);
+        let symbol = if self.depth == 0 { "⦿ " } else { "└── " };
+        warn!("pwrd[{}] [{}|{}] {}{}❗{}", self.req_id, self.user_id, self.user_name, indent_spaces, symbol, msg);
+    }
+
     // 깊이 증가 (하위 로직 진입 시)
     fn enter(&mut self) {
         self.depth += 1;
