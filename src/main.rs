@@ -177,23 +177,26 @@ async fn handle_upload_stamp_image(
 
         // 4. 보안 검사: 실제 파일 포맷 확인 (Magic Bytes 검사)
         // image 크레이트의 guess_format은 파일의 헤더를 읽어 형식을 판별합니다.
-        match image::guess_format(&file_data) {
-            Ok(format) => {
-                // PNG가 아닌 경우 거부 (요청 사항에 따라 .png 파일 가정)
-                if format != image::ImageFormat::Png {
-                    return Ok(HttpResponse::BadRequest().body("Only PNG images are allowed."));
-                }
-            },
+        let format = match image::guess_format(&file_data) {
+            Ok(format) => format,
             Err(_) => {
                 // 이미지 형식이 식별되지 않음 -> 멀웨어 또는 잘못된 파일 가능성
                 return Ok(HttpResponse::BadRequest().body("Invalid image format or corrupted file."));
             }
-        }
+        };
+
+        let ext = match format {
+            image::ImageFormat::Png => "png",
+            image::ImageFormat::WebP => "webp",
+            _ => {
+                return Ok(HttpResponse::BadRequest().body("Only PNG and WebP images are allowed."));
+            }
+        };
 
         // 5. 파일 저장
         // 사용자가 제공한 stamp_id를 파일명으로 사용 (디렉토리 트래버설 방지 로직 필요시 추가)
         // 여기서는 간단하게 포맷팅만 수행
-        let safe_filename = format!("{}.png", stamp_id);
+        let safe_filename = format!("{}.{}", stamp_id, ext);
         let filepath = Path::new(upload_dir).join(safe_filename);
 
         // Blocking I/O를 비동기 블록에서 실행 (actix-web의 web::block 사용 권장되나 간단한 구현을 위해 바로 작성)

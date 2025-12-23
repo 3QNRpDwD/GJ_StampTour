@@ -322,7 +322,7 @@ struct StampUserInfo {
             <h3><span class="badge post">POST</span> /admin/upload/stamp/{stamp_id}</h3>
             <p><strong>Handler:</strong> <code>handle_upload_stamp_image</code></p>
             <p>
-                Uploads a PNG image for a specific stamp.
+                Uploads a PNG or WebP image for a specific stamp.
             </p>
             
             <h4>Request Body (Multipart/form-data)</h4>
@@ -336,14 +336,14 @@ struct StampUserInfo {
             <h4>Validation Logic</h4>
             <ol>
                 <li>Checks file size (max 5MB).</li>
-                <li>Verifies file format is PNG by inspecting its magic bytes (header).</li>
-                <li>Saves the file to <code>resources/images/stamps/{stamp_id}.png</code>, overwriting any existing file.</li>
+                <li>Verifies file format is PNG or WebP by inspecting its magic bytes (header).</li>
+                <li>Saves the file to <code>resources/images/stamps/{stamp_id}.[ext]</code>, where <code>[ext]</code> is either <code>png</code> or <code>webp</code> based on the detected format. Overwrites any existing file.</li>
             </ol>
 
             <h4>Responses</h4>
             <ul>
                 <li><strong>Success (200):</strong> Returns a success message.</li>
-                <li><strong>Error (400 Bad Request):</strong> If the file is too large, not a PNG, or the data is corrupted.</li>
+                <li><strong>Error (400 Bad Request):</strong> If the file is too large, not a PNG or WebP, or the data is corrupted.</li>
                 <li><strong>Error (500 Internal Server Error):</strong> If the server fails to create the directory or write the file.</li>
             </ul>
         </div>
