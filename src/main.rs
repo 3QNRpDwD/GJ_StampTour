@@ -136,7 +136,81 @@ struct LoginResponse {
     user_name: String,
 }
 
-use actix_web::http::header; // 헤더 처리를 위해 추가
+use actix_multipart::Multipart;
+use actix_web::{web, Error};
+use std::fs;
+use std::io::Write;
+
+// 이미지 업로드 핸들러
+// 경로: POST /admin/upload/stamp/{stamp_id}
+async fn handle_upload_stamp_image(
+    path: web::Path<String>, // URL에서 {stamp_id} 추출
+    mut payload: Multipart,  // Multipart 폼 데이터
+) -> Result<HttpResponse, Error> {
+    let stamp_id = path.into_inner();
+
+    // 1. 저장할 디렉토리 확보 (없으면 생성)
+    let upload_dir = "resources/images/stamps/";
+    if !Path::new(upload_dir).exists() {
+        fs::create_dir_all(upload_dir)?;
+    }
+
+    // 2. Multipart 데이터 순회
+    while let Some(mut field) = payload.try_next().await? {
+        // 파일 데이터 청크를 모을 버퍼
+        let mut file_data = Vec::new();
+
+        // 3. 필드에서 청크(데이터 조각)를 읽어 버퍼에 저장
+        while let Some(chunk) = field.try_next().await? {
+            file_data.extend_from_slice(&chunk);
+
+            // (옵션) 파일 사이즈 제한: 예) 5MB 초과 시 에러 처리
+            if file_data.len() > 5 * 1024 * 1024 {
+                return Ok(HttpResponse::BadRequest().body("File too large (max 5MB)"));
+            }
+        }
+
+        // 데이터가 비어있으면 건너뜀
+        if file_data.is_empty() {
+            continue;
+        }
+
+        // 4. 보안 검사: 실제 파일 포맷 확인 (Magic Bytes 검사)
+        // image 크레이트의 guess_format은 파일의 헤더를 읽어 형식을 판별합니다.
+        match image::guess_format(&file_data) {
+            Ok(format) => {
+                // PNG가 아닌 경우 거부 (요청 사항에 따라 .png 파일 가정)
+                if format != image::ImageFormat::Png {
+                    return Ok(HttpResponse::BadRequest().body("Only PNG images are allowed."));
+                }
+            },
+            Err(_) => {
+                // 이미지 형식이 식별되지 않음 -> 멀웨어 또는 잘못된 파일 가능성
+                return Ok(HttpResponse::BadRequest().body("Invalid image format or corrupted file."));
+            }
+        }
+
+        // 5. 파일 저장
+        // 사용자가 제공한 stamp_id를 파일명으로 사용 (디렉토리 트래버설 방지 로직 필요시 추가)
+        // 여기서는 간단하게 포맷팅만 수행
+        let safe_filename = format!("{}.png", stamp_id);
+        let filepath = Path::new(upload_dir).join(safe_filename);
+
+        // Blocking I/O를 비동기 블록에서 실행 (actix-web의 web::block 사용 권장되나 간단한 구현을 위해 바로 작성)
+        // 대용량 트래픽이 예상되면 web::block(|| ...) 을 사용하세요.
+        let mut f = File::create(filepath)?;
+        f.write_all(&file_data)?;
+
+        // 하나의 파일만 처리하고 종료하려면 break; (여러 파일 업로드 시에는 제거)
+        break;
+    }
+
+    Ok(HttpResponse::Ok().body(format!("Stamp image saved for ID: {}", stamp_id)))
+}
+
+use actix_web::http::header;
+use futures_util::TryStreamExt;
+// 헤더 처리를 위해 추가
 
 // 로깅 컨텍스트를 돕기 위한 헬퍼 함수
 fn get_client_ip(req: &HttpRequest) -> String {
@@ -366,7 +440,7 @@ async fn handle_check(
             return Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary();
         }
     };
-    
+
     log.info("User verification passed.");
 
     let current_ua = get_user_agent(&req);
@@ -390,7 +464,7 @@ async fn handle_check(
     } else {
         log.info("Request did not contain a valid stamp ID to register.");
     }
-    
+
     log.leave();
     log.info("Redirecting user to a random URL.");
     Redirect::to(format!("/stamp/?random={}", Uuid::new_v4())).temporary()
@@ -760,7 +834,7 @@ async fn handle_admin(
         log.leave();
         return handle_401().await;
     }
-    
+
     log.info("Admin access authorized.");
 
     let mut cmd_output = Command {
@@ -804,7 +878,7 @@ async fn handle_admin(
     } else {
         log.warn("Unknown command.");
     }
-    
+
     log.leave();
     log.leave();
     HttpResponse::Ok().json(cmd_output)
@@ -911,7 +985,7 @@ async fn handle_login(
             let cookie_user_id = Cookie::build("user_id", student_id.clone())
                 .path("/")
                 .finish();
-            
+
             log.info("Cookies generated for new user.");
             log.success("New user registration complete.");
             log.leave();
@@ -1348,6 +1422,7 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
             .route("/", get().to(index)) // 인덱스 요청 처리
             .service(resource("/login").route(post().to(handle_login))) // 로그인 요청 처리
             .service(resource("/admin").route(post().to(handle_admin)))
+            .route("/admin/upload/stamp/{stamp_id}", post().to(handle_upload_stamp_image))
             .route("/otp/generate", get().to(handle_generate_otp)) // OTP 생성
             .route("/stamp/issue", post().to(handle_issue_stamp))     // QR 스탬프 발급
             .route("/check", get().to(handle_check)) // 스템프 리다이렉션 처리

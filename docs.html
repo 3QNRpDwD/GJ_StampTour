@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stamp Rally Server Documentation</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+            --sidebar-width: 250px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            display: flex;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+        }
+
+        /* Sidebar Navigation */
+        nav {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+            padding-top: 20px;
+        }
+
+        nav h2 {
+            text-align: center;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #34495e;
+            padding-bottom: 10px;
+        }
+
+        nav ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        nav li a {
+            display: block;
+            padding: 12px 20px;
+            color: #ecf0f1;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        nav li a:hover {
+            background-color: var(--accent-color);
+        }
+
+        /* Main Content */
+        main {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            flex: 1;
+            max-width: 1000px;
+        }
+
+        h1, h2, h3 {
+            color: var(--primary-color);
+        }
+
+        h1 { border-bottom: 2px solid var(--accent-color); padding-bottom: 10px; }
+        h2 { margin-top: 40px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+
+        /* Code Blocks */
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .struct-def {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-left: 4px solid var(--accent-color);
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            color: white;
+            margin-right: 10px;
+        }
+        .get { background-color: #61affe; }
+        .post { background-color: #49cc90; }
+        .struct { background-color: #e67e22; }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: var(--primary-color);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <h2>Stamp Server API</h2>
+    <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#state">Global State & Structs</a></li>
+        <li><a href="#auth-endpoints">Authentication</a></li>
+        <li><a href="#stamp-flow">QR Stamp Flow</a></li>
+        <li><a href="#otp-flow">OTP Kiosk Flow</a></li>
+        <li><a href="#admin">Admin & System</a></li>
+        <li><a href="#helpers">Internal Helpers</a></li>
+    </ul>
+</nav>
+
+<main>
+    <section id="overview">
+        <h1>Server Overview</h1>
+        <p>
+            This documentation covers the internal logic and API endpoints for the Stamp Rally Server. 
+            The system is built using <strong>Rust</strong> and <strong>Actix-web</strong>. It handles user authentication, 
+            QR code-based stamp collection, and an OTP (One-Time Password) based system for Kiosk interactions.
+        </p>
+        <p><strong>Version:</strong> 0.1.2</p>
+    </section>
+
+    <section id="state">
+        <h2>Global State & Data Structures</h2>
+        <p>The server maintains state using `Actix-web` Data wrappers around `Mutex` protected HashMaps.</p>
+
+        <div class="struct-def">
+            <h3><span class="badge struct">Struct</span> User</h3>
+            <p>Represents a registered user in the system.</p>
+            <pre>
+struct User {
+    student_id: String,     // Unique ID (UUIDv5 generated from user+pass)
+    user_name: String,      // Display name
+    password_hash: String,  // Bcrypt hash
+    user_agent: String,     // User agent used during registration (for security checks)
+}</pre>
+        </div>
+
+        <div class="struct-def">
+            <h3><span class="badge struct">Struct</span> OtpAuth</h3>
+            <p>Temporary storage for generated OTPs waiting to be claimed by a Kiosk.</p>
+            <pre>
+struct OtpAuth {
+    student_id: String,
+    generation_time: i64,
+    expiration_time: i64,   // Default validity: 30 seconds
+}</pre>
+        </div>
+
+        <div class="struct-def">
+            <h3><span class="badge struct">Struct</span> StampUserInfo</h3>
+            <p>A record of a single stamp event.</p>
+            <pre>
+struct StampUserInfo {
+    student_id: String,
+    user_name: String,
+    timestamp: String,
+}</pre>
+        </div>
+
+        <div class="struct-def">
+            <h3><span class="badge struct">Struct</span> LogFlow</h3>
+            <p>A helper struct not exposed via API, used for structured, indented logging to track request flows.</p>
+        </div>
+    </section>
+
+    <section id="auth-endpoints">
+        <h2>Authentication API</h2>
+
+        <div class="struct-def">
+            <h3><span class="badge post">POST</span> /login</h3>
+            <p><strong>Handler:</strong> <code>handle_login</code></p>
+            <p>
+                Handles both Login and Registration. If the user does not exist, a new account is created.
+                If the user exists, the password is verified.
+            </p>
+            
+            <h4>Request Body (JSON)</h4>
+            <pre>
+{
+    "user": "student_name",
+    "password": "secret_password"
+}</pre>
+
+            <h4>Response</h4>
+            <ul>
+                <li><strong>Success (200):</strong> Returns JSON user info and sets <code>user_id</code> and <code>user_name</code> cookies.</li>
+                <li><strong>Error (500):</strong> Internal hashing error.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="stamp-flow">
+        <h2>QR Stamp Collection Flow</h2>
+        <p>This flow is used when a user scans a QR code at a physical location.</p>
+
+        <div class="struct-def">
+            <h3><span class="badge get">GET</span> /check?s={stamp_id}</h3>
+            <p><strong>Handler:</strong> <code>handle_check</code></p>
+            <p>
+                The entry point for a QR scan.
+            </p>
+            <ol>
+                <li>Verifies the <code>user_id</code> cookie.</li>
+                <li>Checks if the User-Agent matches the one stored at login (security check).</li>
+                <li>Validates the <code>stamp_id</code> exists in the database.</li>
+                <li>Adds the stamp to a <strong>pending queue</strong> (<code>UserStampList</code>).</li>
+                <li>Redirects the user to <code>/stamp/?random={uuid}</code>.</li>
+            </ol>
+        </div>
+
+        <div class="struct-def">
+            <h3><span class="badge get">GET</span> /stamp</h3>
+            <p><strong>Handler:</strong> <code>handle_stamp</code></p>
+            <p>
+                Finalizes the stamp process.
+            </p>
+            <ol>
+                <li>Retrieves the pending stamp ID for the user from <code>UserStampList</code>.</li>
+                <li>Moves the stamp record into the permanent <code>StampHistory</code>.</li>
+                <li>Returns a formatted HTML page (<code>check.html</code>) displaying the specific stamp image.</li>
+            </ol>
+        </div>
+    </section>
+
+    <section id="otp-flow">
+        <h2>OTP / Kiosk Flow</h2>
+        <p>Used when the user cannot scan a QR code but interacts with a Kiosk tablet.</p>
+
+        <div class="struct-def">
+            <h3><span class="badge get">GET</span> /otp/generate</h3>
+            <p><strong>Handler:</strong> <code>handle_generate_otp</code></p>
+            <p>Called by the user's mobile device.</p>
+            <ul>
+                <li>Generates a random 6-digit OTP.</li>
+                <li>Stores it in <code>OtpStore</code> with a 30-second expiration.</li>
+                <li>Returns the OTP and the last successful stamp info (if any).</li>
+            </ul>
+        </div>
+
+        <div class="struct-def">
+            <h3><span class="badge post">POST</span> /stamp/issue</h3>
+            <p><strong>Handler:</strong> <code>handle_issue_stamp</code></p>
+            <p>Called by the <strong>Kiosk</strong> machine.</p>
+            
+            <h4>Request Body (JSON)</h4>
+            <pre>
+{
+    "otp": "123456",
+    "stamp_id": "STAMP_001",
+    "stamp_name": "Location Name"
+}</pre>
+
+            <h4>Logic</h4>
+            <ol>
+                <li>Validates the OTP exists and hasn't expired.</li>
+                <li>Retrieves the User associated with that OTP.</li>
+                <li>Records the stamp in <code>StampHistory</code>.</li>
+                <li>Returns user info to the Kiosk for display.</li>
+            </ol>
+        </div>
+    </section>
+
+    <section id="admin">
+        <h2>Admin & System</h2>
+
+        <div class="struct-def">
+            <h3><span class="badge post">POST</span> /admin</h3>
+            <p><strong>Handler:</strong> <code>handle_admin</code></p>
+            <p>
+                Executes administrative commands. 
+                <br><strong>Security:</strong> Only accepts requests from Loopback IP (localhost).
+            </p>
+            
+            <h4>Commands</h4>
+            <table>
+                <tr>
+                    <th>Command String</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>"stamp status"</code></td>
+                    <td>Saves the current stamp history to disk and returns the data structure.</td>
+                </tr>
+                <tr>
+                    <td><code>"save all"</code></td>
+                    <td>Forces a save of both <code>stamp_status.json</code> and <code>user_status.json</code>.</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="struct-def">
+            <h3><span class="badge post">POST</span> /admin/upload/stamp/{stamp_id}</h3>
+            <p><strong>Handler:</strong> <code>handle_upload_stamp_image</code></p>
+            <p>
+                Uploads a PNG image for a specific stamp.
+            </p>
+            
+            <h4>Request Body (Multipart/form-data)</h4>
+            <p>The request must contain a single file field.</p>
+            
+            <h4>Path Parameters</h4>
+            <ul>
+                <li><code>{stamp_id}</code>: The ID of the stamp to associate the image with.</li>
+            </ul>
+
+            <h4>Validation Logic</h4>
+            <ol>
+                <li>Checks file size (max 5MB).</li>
+                <li>Verifies file format is PNG by inspecting its magic bytes (header).</li>
+                <li>Saves the file to <code>resources/images/stamps/{stamp_id}.png</code>, overwriting any existing file.</li>
+            </ol>
+
+            <h4>Responses</h4>
+            <ul>
+                <li><strong>Success (200):</strong> Returns a success message.</li>
+                <li><strong>Error (400 Bad Request):</strong> If the file is too large, not a PNG, or the data is corrupted.</li>
+                <li><strong>Error (500 Internal Server Error):</strong> If the server fails to create the directory or write the file.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="helpers">
+        <h2>Internal Helper Functions</h2>
+        
+        <div class="struct-def">
+            <h3>Logger / LogFlow</h3>
+            <p>
+                A custom logging wrapper found in <code>LogFlow</code> struct. It generates hierarchical logs with indentation based on execution depth.
+                It tracks <code>req_id</code> (Request UUID) and <code>user_name</code> context throughout the async flow.
+            </p>
+        </div>
+
+        <div class="struct-def">
+            <h3>File I/O</h3>
+            <ul>
+                <li><code>stamp_db()</code>: Loads <code>stampList.json</code> at startup.</li>
+                <li><code>user_list_db()</code>: Loads user database.</li>
+                <li><code>format_file(stamp_id)</code>: Reads <code>check.html</code> and replaces <code>%STAMP_ID%</code> with the actual ID.</li>
+                <li><code>handle_html</code>: Generic handler for serving static HTML files from the <code>resources/html</code> directory.</li>
+            </ul>
+        </div>
+
+        <div class="struct-def">
+            <h3>Security Helpers</h3>
+            <ul>
+                <li><code>check_ua_consistency(current, stored)</code>: Compares the request's User-Agent against the one stored during registration. Returns a "MISMATCH" warning log if they differ.</li>
+            </ul>
+        </div>
+    </section>
+
+</main>
+
+</body>
+</html>
