@@ -60,6 +60,7 @@ struct GenerateOtpResponse {
 struct KioskStampRequest {
     otp: String,
     stamp_id: String,
+    stamp_name: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Hash)]
@@ -345,7 +346,7 @@ async fn handle_check(
     let ip = get_client_ip(&req);
     let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
 
-    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..8], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Check request from IP: {}", ip));
     log.enter();
 
@@ -409,7 +410,7 @@ impl LogFlow {
         let req_id = Uuid::new_v4().to_string()[0..5].to_string();
         Self {
             req_id,
-            user_id: user_id[0..8].to_string(),
+            user_id: user_id.to_string(),
             user_name: user_name.to_string(),
             depth: 0,
         }
@@ -492,7 +493,7 @@ async fn handle_stamp(
     );
 
     // 2. LogFlow 생성 (여기서 요청 ID가 발급됨)
-    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..8], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("Stamp request initiated from IP: {}", ip));
 
     // 3. 사용자 인증
@@ -571,9 +572,9 @@ async fn handle_generate_otp(
     user_list: Data<Mutex<UserList>>,
     user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
-    let student_id = req.cookie("user_id").map_or("Guest".to_string(), |c| c.value().to_string());
+    let student_id = req.cookie("user_id").map_or("Guest1234".to_string(), |c| c.value().to_string());
     let ip = get_client_ip(&req);
-    let mut log = LogFlow::new(&student_id, &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
+    let mut log = LogFlow::new(&student_id[0..8], &req.cookie("user_name").map_or("Guest".to_string(), |c| c.value().to_string()));
     log.info(&format!("OTP generation request from IP: {}", ip));
     log.enter();
 
@@ -601,12 +602,12 @@ async fn handle_generate_otp(
     }
 
     // 4. 6자리 랜덤 OTP 생성
-    const OTP_VALIDITY_SECONDS: i64 = 60;
+    const OTP_VALIDITY_SECONDS: i64 = 30;
     let mut rng = rand::thread_rng();
     let otp = format!("{:06}", rng.gen_range(0..1_000_000));
     log.info(&format!("Generated new OTP: {}", otp));
 
-    // 5. OTP 데이터 생성 및 저장
+    // 5. 만료된 OTP를 정리하고 새 OTP를 저장합니다.
     let generation_time = chrono::Utc::now().timestamp();
     let otp_auth = OtpAuth {
         student_id: student_id.clone(),
@@ -615,6 +616,15 @@ async fn handle_generate_otp(
     };
 
     let mut store = otp_store.lock().unwrap();
+
+    // 만료된 OTP 정리
+    let original_len = store.len();
+    store.retain(|_otp, auth| auth.expiration_time > generation_time);
+    let removed_count = original_len - store.len();
+    if removed_count > 0 {
+        log.info(&format!("Cleaned up {} expired OTP(s).", removed_count));
+    }
+
     store.insert(otp.clone(), otp_auth);
     log.info("New OTP saved to store.");
 
@@ -629,7 +639,9 @@ async fn handle_generate_otp(
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SUC {
-    status: String
+    status: String,
+    user_name: String,
+    user_id: String
 }
 
 async fn handle_issue_stamp(
@@ -640,22 +652,22 @@ async fn handle_issue_stamp(
     otp_store: Data<Mutex<OtpStore>>,
     user_success_history: Data<Mutex<UserSuccessHistory>>,
 ) -> impl Responder {
-    // Kiosk requests don't have user context initially. Use OTP as a temporary ID.
-    let mut log = LogFlow::new(&payload.stamp_id, &format!("OTP:{}", payload.otp));
-    log.info(&format!("Stamp issuance request from Kiosk for StampID: {}", payload.stamp_id));
+    // Kiosk 요청은 초기에 사용자 컨텍스트가 없으므로, OTP와 스탬프 ID를 기반으로 로그를 시작합니다.
+    let mut log = LogFlow::new("Kiosk", &format!("stamp:{}|otp:{}", payload.stamp_name,payload.otp));
+    log.info(&format!("Stamp issuance request for stamp '{}'", payload.stamp_id));
     log.enter();
 
     // 1. OTP 조회 및 제거
     let mut store = otp_store.lock().unwrap();
     let otp_auth = match store.remove(&payload.otp) {
         Some(auth) => {
+            // OTP가 유효하면, 이제 사용자 ID를 알 수 있으므로 로거 컨텍스트를 업데이트합니다.
+            log.user_name = format!("stamp:{}|user:{}", &payload.stamp_name, &auth.student_id[0..8]);
             log.info("OTP found and consumed.");
-            // Now we have the student_id, update the logger context.
-            log.user_id = auth.student_id.clone();
             auth
         },
         None => {
-            log.warn("Invalid or already used OTP.");
+            log.warn(&format!("Invalid or already used OTP: {}", payload.otp));
             log.leave();
             return HttpResponse::BadRequest().body("Invalid or already used OTP.");
         }
@@ -680,7 +692,7 @@ async fn handle_issue_stamp(
         },
         None => {
             // 이 경우는 OTP가 발급되었으나 그 사이 유저가 삭제된 극히 드문 케이스
-            log.warn("User associated with OTP not found in database.");
+            log.warn(&format!("User with ID {} not found, though OTP was valid.", otp_auth.student_id));
             log.leave();
             log.leave();
             return HttpResponse::BadRequest().body("Invalid user.");
@@ -719,10 +731,10 @@ async fn handle_issue_stamp(
     success_history.insert(user.student_id.clone(), success_info);
     log.info("Stamp issuance success history saved.");
 
-    log.success(&format!("Successfully issued stamp '{}' to user '{}'", payload.stamp_id, user.student_id));
+    log.success(&format!("Successfully issued stamp '{}' to user '{}' ({})", payload.stamp_id, user.user_name, user.student_id));
     log.leave();
 
-    HttpResponse::Ok().json(SUC {status:String::from("success")})
+    HttpResponse::Ok().json(SUC {status:String::from("success"), user_name: user.user_name.clone(), user_id: user.student_id.clone() })
 }
 
 async fn handle_admin(
@@ -823,7 +835,7 @@ async fn handle_login(
     let student_id = Uuid::new_v5(&NAMESPACE_UUID, combined_string.as_bytes()).to_string();
 
     // CORRECT: Initialize the logger with the stable student_id and the user-provided name from the start.
-    let mut log = LogFlow::new(&student_id, &payload.user);
+    let mut log = LogFlow::new(&student_id[0..8], &payload.user);
     log.info(&format!("Login/Register attempt from IP: {}", ip));
     log.enter();
 
@@ -1304,7 +1316,7 @@ async fn run(address: AddressInfo) -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(
-                Logger::new(r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %Dms"#)
+                Logger::new(r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %Dms\n"#)
                     .exclude("/favicon.ico") // 예시
                     // 주의: /{folder}/{file} 같은 동적 라우트는 exclude로 잡기 어렵습니다.
                     // 따라서 미들웨어는 '시스템 로그'용으로 두고,
