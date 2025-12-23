@@ -713,6 +713,13 @@ async fn handle_issue_stamp(
     let mut history = user_history.lock().unwrap();
     let stamp_log = history.stamp_history.entry(payload.stamp_id.clone()).or_insert_with(Vec::new);
 
+    // 중복 스탬프 확인
+    if stamp_log.iter().any(|info| info.student_id == user.student_id) {
+        log.warn(&format!("User '{}' ({}) already stamped '{}'.", user.user_name, user.student_id, payload.stamp_id));
+        log.leave();
+        return HttpResponse::Conflict().body("You have already stamped this location.");
+    }
+
     let user_info = StampUserInfo {
         student_id: user.student_id.clone(),
         user_name: user.user_name.clone(),
